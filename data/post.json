@@ -24,6 +24,24 @@
       "userId": "string",
       "name": "string",
       "school": "string"
+    },
+    "media": {
+      "script": "string",
+      "videos": [
+        {
+          "id": "string",
+          "url": "string",
+          "title": "string",
+          "description": "string"
+        }
+      ],
+      "images": [
+        {
+          "id": "string",
+          "url": "string",
+          "caption": "string"
+        }
+      ]
     }
   }
 }
