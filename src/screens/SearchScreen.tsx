@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  TouchableOpacity,
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,13 +55,127 @@ const SuggestionRow = ({
   </Pressable>
 );
 
+/** Full-screen modal showing all details for a post */
+const PostDetailModal = ({
+  post,
+  onClose,
+  onApply,
+}: {
+  post: Post | null;
+  onClose: () => void;
+  onApply: (post: Post) => void;
+}) => {
+  if (!post) return null;
+
+  const dateRange = formatDateRange(
+    post.shootingTimeline.startDate,
+    post.shootingTimeline.endDate,
+  );
+  const deadline = new Date(post.recruitmentDeadline);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const deadlineStr = `${months[deadline.getMonth()]} ${deadline.getDate()}, ${deadline.getFullYear()}`;
+
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={styles.detailContainer}>
+        {/* Header */}
+        <View style={styles.detailHeader}>
+          <Pressable onPress={onClose} hitSlop={12} style={styles.detailBackBtn}>
+            <Text style={styles.detailBackText}>← Back</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={styles.detailScroll}
+          contentContainerStyle={styles.detailScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Poster info */}
+          <View style={styles.detailPosterRow}>
+            <View style={styles.detailAvatar} />
+            <View>
+              <Text style={styles.detailPosterName}>{post.postedBy.name}</Text>
+              {post.postedBy.school ? (
+                <Text style={styles.detailPosterSchool}>{post.postedBy.school}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Film name */}
+          <Text style={styles.detailFilmName}>{post.filmName}</Text>
+          {post.director.length > 0 && (
+            <Text style={styles.detailDirector}>
+              directed by {post.director.join(', ')}
+            </Text>
+          )}
+
+          {/* Meta row */}
+          <View style={styles.detailMetaRow}>
+            <Text style={styles.detailMetaItem}>
+              📍 {post.shootingLocation.city}, {post.shootingLocation.state}
+            </Text>
+            <Text style={styles.detailMetaItem}>🎬 {dateRange}</Text>
+            <Text style={styles.detailMetaItem}>⏰ Apply by {deadlineStr}</Text>
+          </View>
+
+          {post.shootingLocation.details ? (
+            <Text style={styles.detailLocationDetails}>{post.shootingLocation.details}</Text>
+          ) : null}
+
+          {/* Roles */}
+          <Text style={styles.detailSectionTitle}>Roles</Text>
+          {post.roles.map((role, i) => (
+            <View key={i} style={styles.detailRoleCard}>
+              <Text style={styles.detailRoleTitle}>{role.title}</Text>
+              <Text style={styles.detailRoleType}>{role.type}</Text>
+              <Text style={styles.detailRoleDesc}>{role.description}</Text>
+            </View>
+          ))}
+
+          {/* Images */}
+          {post.media.images.length > 0 && (
+            <>
+              <Text style={styles.detailSectionTitle}>Photos</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.detailImageScroll}
+                contentContainerStyle={styles.imageScrollContent}
+              >
+                {post.media.images.map((img) => (
+                  <Image
+                    key={img.id}
+                    source={{ uri: img.url }}
+                    style={styles.detailImage}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Apply button */}
+          <Pressable
+            style={styles.applyButton}
+            onPress={() => { onApply(post); onClose(); }}
+          >
+            <Text style={styles.applyButtonText}>Apply</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
+
 /** Post card matching the Figma design */
 const PostCard = ({
   post,
   onApply,
+  onPress,
 }: {
   post: Post;
   onApply: (post: Post) => void;
+  onPress: (post: Post) => void;
 }) => {
   const description = post.roles[0]?.description ?? `Looking for crew for "${post.filmName}"`;
   const dateRange = formatDateRange(
@@ -75,7 +190,7 @@ const PostCard = ({
   const hasImages = post.media.images.length > 0;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity activeOpacity={0.85} onPress={() => onPress(post)} style={styles.card}>
       {/* Header: avatar + poster name */}
       <View style={styles.cardHeader}>
         <View style={styles.avatar} />
@@ -113,19 +228,28 @@ const PostCard = ({
       )}
 
       {/* Apply button */}
-      <Pressable style={styles.applyButton} onPress={() => onApply(post)}>
+      <Pressable
+        style={styles.applyButton}
+        onPress={(e) => { e.stopPropagation?.(); onApply(post); }}
+      >
         <Text style={styles.applyButtonText}>Apply</Text>
       </Pressable>
-    </View>
+    </TouchableOpacity>
   );
 };
 
 /** Person card matching the Figma design */
-const PeopleCard = ({ person }: { person: UserProfile }) => (
-  <View style={styles.peopleCard}>
+const PeopleCard = ({
+  person,
+  onPress,
+}: {
+  person: UserProfile;
+  onPress: (person: UserProfile) => void;
+}) => (
+  <TouchableOpacity activeOpacity={0.8} onPress={() => onPress(person)} style={styles.peopleCard}>
     <View style={styles.avatar} />
     <Text style={styles.posterName}>{person.basicInfo.name}</Text>
-  </View>
+  </TouchableOpacity>
 );
 
 /** Posts / People tab bar */
@@ -286,6 +410,8 @@ export const SearchScreen = () => {
   const [isFocused, setIsFocused] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'people'>('posts');
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const {
@@ -351,11 +477,15 @@ export const SearchScreen = () => {
   }
 
   const renderPostCard = ({ item }: { item: Post }) => (
-    <PostCard post={item} onApply={handleApply} />
+    <PostCard
+      post={item}
+      onApply={handleApply}
+      onPress={(post) => setSelectedPost(post)}
+    />
   );
 
   const renderPeopleCard = ({ item }: { item: UserProfile }) => (
-    <PeopleCard person={item} />
+    <PeopleCard person={item} onPress={(person) => setSelectedPerson(person)} />
   );
 
   const renderEmpty = () => {
@@ -482,6 +612,41 @@ export const SearchScreen = () => {
         onApply={handleFiltersApply}
         onClose={() => setShowLocationModal(false)}
       />
+
+      {/* ── Post detail modal ── */}
+      <PostDetailModal
+        post={selectedPost}
+        onClose={() => setSelectedPost(null)}
+        onApply={handleApply}
+      />
+
+      {/* ── Person profile placeholder modal ── */}
+      <Modal
+        visible={selectedPerson !== null}
+        animationType="slide"
+        onRequestClose={() => setSelectedPerson(null)}
+      >
+        <View style={styles.detailContainer}>
+          <View style={styles.detailHeader}>
+            <Pressable
+              onPress={() => setSelectedPerson(null)}
+              hitSlop={12}
+              style={styles.detailBackBtn}
+            >
+              <Text style={styles.detailBackText}>← Back</Text>
+            </Pressable>
+          </View>
+          <View style={styles.profilePlaceholder}>
+            <View style={styles.profilePlaceholderAvatar} />
+            <Text style={styles.profilePlaceholderName}>
+              {selectedPerson?.basicInfo.name}
+            </Text>
+            <Text style={styles.profilePlaceholderMsg}>
+              Profile page coming soon
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -716,6 +881,145 @@ const styles = StyleSheet.create({
   loadingFooter: {
     paddingVertical: 24,
     alignItems: 'center',
+  },
+
+  // Post detail screen
+  detailContainer: {
+    flex: 1,
+    backgroundColor: BG,
+  },
+  detailHeader: {
+    paddingTop: 56,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#3D3D3D',
+  },
+  detailBackBtn: {
+    alignSelf: 'flex-start',
+  },
+  detailBackText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  detailScroll: {
+    flex: 1,
+  },
+  detailScrollContent: {
+    padding: 20,
+    paddingBottom: 48,
+  },
+  detailPosterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  detailAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#C0C4CC',
+  },
+  detailPosterName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  detailPosterSchool: {
+    color: '#AAAAAA',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  detailFilmName: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  detailDirector: {
+    color: '#AAAAAA',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  detailMetaRow: {
+    gap: 6,
+    marginBottom: 4,
+  },
+  detailMetaItem: {
+    color: '#CCCCCC',
+    fontSize: 14,
+  },
+  detailLocationDetails: {
+    color: '#888888',
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  detailSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  detailRoleCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  detailRoleTitle: {
+    color: '#111111',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  detailRoleType: {
+    color: '#888888',
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  detailRoleDesc: {
+    color: '#333333',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  detailImageScroll: {
+    marginHorizontal: -20,
+  },
+  detailImage: {
+    width: 260,
+    height: 180,
+    borderRadius: 10,
+    backgroundColor: '#D8E4F0',
+  },
+
+  // Profile placeholder
+  profilePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  profilePlaceholderAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#C0C4CC',
+  },
+  profilePlaceholderName: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  profilePlaceholderMsg: {
+    color: '#888888',
+    fontSize: 15,
   },
 
   // Error
