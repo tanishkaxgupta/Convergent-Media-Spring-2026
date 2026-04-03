@@ -124,11 +124,23 @@ import firebase from 'firebase/compat/app';
     query = query.limit(pageSize);
   
     // ── Execute ───────────────────────────────────────────────────
+    // Skip Firestore entirely when Firebase isn't configured (local dev without env vars)
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore – process.env is available at runtime in Expo/Metro
+    const isFirebaseConfigured = !!(process.env.EXPO_PUBLIC_FIREBASE_API_KEY && process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID); // @ts-ignore
+    if (!isFirebaseConfigured) {
+      return filterMockPosts(options);
+    }
+
     let snap: firebase.firestore.QuerySnapshot;
     try {
-      snap = await query.get();
+      // Race against a 4 s timeout so we fall back to mock data quickly
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 4000)
+      );
+      snap = await Promise.race([query.get(), timeout]);
     } catch {
-      // Firebase not reachable (no network, not configured) — use mock data
+      // Firebase not reachable (no network, not configured, or timeout) — use mock data
       return filterMockPosts(options);
     }
   

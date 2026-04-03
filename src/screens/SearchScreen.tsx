@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
   Keyboard,
@@ -13,6 +14,10 @@ import {
   View,
   TouchableOpacity,
 } from 'react-native';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// listContent paddingHorizontal (16) + card padding (16) on each side
+const CARD_IMAGE_WIDTH = SCREEN_WIDTH - 64;
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -207,24 +212,29 @@ const PostCard = ({
 
       {/* Photos */}
       {hasImages && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.imageScroll}
-          contentContainerStyle={styles.imageScrollContent}
-        >
-          {post.media.images.map((img) => (
-            <Image
-              key={img.id}
-              source={{ uri: img.url }}
-              style={[
-                styles.postImage,
-                post.media.images.length === 1 && styles.postImageFull,
-              ]}
-              resizeMode="cover"
-            />
-          ))}
-        </ScrollView>
+        post.media.images.length === 1 ? (
+          <Image
+            source={{ uri: post.media.images[0].url }}
+            style={styles.postImageFull}
+            resizeMode="cover"
+          />
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.imageScroll}
+            contentContainerStyle={styles.imageScrollContent}
+          >
+            {post.media.images.map((img) => (
+              <Image
+                key={img.id}
+                source={{ uri: img.url }}
+                style={styles.postImage}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
+        )
       )}
 
       {/* Apply button */}
@@ -828,8 +838,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#D8E4F0',
   },
   postImageFull: {
-    // Single image: stretch to full card width
-    width: '100%' as any,
+    width: CARD_IMAGE_WIDTH,
+    height: 180,
+    borderRadius: 10,
+    backgroundColor: '#D8E4F0',
+    marginTop: 12,
   },
 
   applyButton: {
