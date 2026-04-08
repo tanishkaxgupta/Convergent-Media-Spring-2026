@@ -25,6 +25,7 @@ import { usePostSearch } from '../hooks/use-post-search';
 import { Post } from '../types/post';
 import { UserProfile } from '../types/user';
 import { MOCK_PEOPLE } from '../data/mockPeople';
+import { ApplyScreen } from './ApplyScreen';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -255,12 +256,19 @@ const PeopleCard = ({
 }: {
   person: UserProfile;
   onPress: (person: UserProfile) => void;
-}) => (
-  <TouchableOpacity activeOpacity={0.8} onPress={() => onPress(person)} style={styles.peopleCard}>
-    <View style={styles.avatar} />
-    <Text style={styles.posterName}>{person.basicInfo.name}</Text>
-  </TouchableOpacity>
-);
+}) => {
+  const role = person.roleInfo.specialties[0] ?? person.roleInfo.primaryRole;
+  const location = person.basicInfo.school ?? `${person.basicInfo.location.city}, ${person.basicInfo.location.state}`;
+  return (
+    <TouchableOpacity activeOpacity={0.8} onPress={() => onPress(person)} style={styles.peopleCard}>
+      <View style={styles.peopleAvatar} />
+      <View style={styles.peopleCardText}>
+        <Text style={styles.peopleCardName}>{person.basicInfo.name}</Text>
+        <Text style={styles.peopleCardSub}>{role} @ {location}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 /** Posts / People tab bar */
 const TabBar = ({
@@ -422,6 +430,7 @@ export const SearchScreen = () => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
+  const [applyPost, setApplyPost] = useState<Post | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const {
@@ -477,7 +486,8 @@ export const SearchScreen = () => {
   }
 
   function handleApply(post: Post) {
-    console.log('Apply tapped for post:', post.id);
+    setSelectedPost(null); // close detail modal if open
+    setApplyPost(post);
   }
 
   function handleFiltersApply(newCity: string, newState: string, newSchool: string) {
@@ -628,6 +638,13 @@ export const SearchScreen = () => {
         post={selectedPost}
         onClose={() => setSelectedPost(null)}
         onApply={handleApply}
+      />
+
+      {/* ── Apply screen ── */}
+      <ApplyScreen
+        post={applyPost}
+        visible={applyPost !== null}
+        onClose={() => setApplyPost(null)}
       />
 
       {/* ── Person profile placeholder modal ── */}
@@ -867,11 +884,31 @@ const styles = StyleSheet.create({
   peopleCard: {
     backgroundColor: CARD_BG,
     borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+  },
+  peopleAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#8A95A3',
+    flexShrink: 0,
+  },
+  peopleCardText: {
+    flex: 1,
+    gap: 3,
+  },
+  peopleCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  peopleCardSub: {
+    fontSize: 13,
+    color: '#666666',
   },
 
   // Empty / loading

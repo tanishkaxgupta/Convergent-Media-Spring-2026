@@ -39,6 +39,7 @@ export interface UserProfile {
     pronouns: string;
     headshotUrl: string;
     bio: string;
+    school?: string;
     location: {
       city: string;
       state: string;
