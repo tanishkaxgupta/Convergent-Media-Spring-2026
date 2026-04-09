@@ -22,7 +22,7 @@ const CARD_IMAGE_WIDTH = SCREEN_WIDTH - 64;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePostSearch } from '../hooks/use-post-search';
-import { Post } from '../types/post';
+import { Post, RoleType, ALL_ROLE_TYPES } from '../types/post';
 import { UserProfile } from '../types/user';
 import { MOCK_PEOPLE } from '../data/mockPeople';
 import { ApplyScreen } from './ApplyScreen';
@@ -421,6 +421,66 @@ const FiltersModal = ({
   );
 };
 
+/** Role labels shown on pills */
+const ROLE_LABELS: Record<RoleType, string> = {
+  actor: 'Actor',
+  tech: 'Tech',
+  crew: 'Crew',
+  dancer: 'Dancer',
+  musician: 'Musician',
+  other: 'Other',
+};
+
+/** Bottom-sheet modal for picking one or more role types */
+const RoleFilterModal = ({
+  visible,
+  selected,
+  onToggle,
+  onClear,
+  onClose,
+}: {
+  visible: boolean;
+  selected: RoleType[];
+  onToggle: (r: RoleType) => void;
+  onClear: () => void;
+  onClose: () => void;
+}) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable style={styles.modalCard} onPress={() => {}}>
+        <Text style={styles.modalTitle}>Filter by Role</Text>
+        <Text style={styles.modalSubtitle}>Select one or more roles</Text>
+
+        <View style={styles.roleGrid}>
+          {ALL_ROLE_TYPES.map((role) => {
+            const active = selected.includes(role);
+            return (
+              <Pressable
+                key={role}
+                style={[styles.rolePill, active && styles.rolePillActive]}
+                onPress={() => onToggle(role)}
+              >
+                <Text style={[styles.rolePillText, active && styles.rolePillTextActive]}>
+                  {ROLE_LABELS[role]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.modalActions}>
+          <Pressable style={styles.modalClearBtn} onPress={() => { onClear(); onClose(); }}>
+            <Text style={styles.modalClearText}>Clear</Text>
+          </Pressable>
+          <Pressable style={styles.modalApplyBtn} onPress={onClose}>
+            <Text style={styles.modalApplyText}>Done</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Pressable>
+  </Modal>
+);
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export const SearchScreen = () => {
@@ -428,6 +488,7 @@ export const SearchScreen = () => {
   const [isFocused, setIsFocused] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'people'>('posts');
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
   const [applyPost, setApplyPost] = useState<Post | null>(null);
@@ -438,6 +499,7 @@ export const SearchScreen = () => {
     isLoading,
     error,
     query,
+    roleTypes,
     city,
     state,
     school,
@@ -445,6 +507,8 @@ export const SearchScreen = () => {
     setCity,
     setState,
     setSchool,
+    toggleRoleType,
+    clearFilters,
   } = usePostSearch();
 
   // Default to UT Austin on first load
@@ -466,15 +530,23 @@ export const SearchScreen = () => {
     city && state ? `${city}, ${state.toUpperCase()}`
     : city ? city
     : state ? state.toUpperCase()
-    : null;
+    : school || null;
 
-  const filterParts = [
-    school || null,
-    locationLabel,
-  ].filter(Boolean);
+  const hasLocation = !!(city || state || school);
 
-  const filterLabel = filterParts.length > 0 ? filterParts.join(' · ') : 'Set filters';
-  const hasFilters = !!(school || city || state);
+  const roleLabel =
+    roleTypes.length === 0 ? 'Role'
+    : roleTypes.length === 1 ? ROLE_LABELS[roleTypes[0]]
+    : `Role (${roleTypes.length})`;
+  const hasRoleFilter = roleTypes.length > 0;
+
+  // Filter people client-side by selected role types
+  const filteredPeople = hasRoleFilter
+    ? MOCK_PEOPLE.filter(p =>
+        roleTypes.includes(p.roleInfo.primaryRole) ||
+        (p.roleInfo.secondaryRoles as RoleType[]).some(r => roleTypes.includes(r))
+      )
+    : MOCK_PEOPLE;
 
   const showSuggestions = isFocused && query.length > 0 && suggestions.length > 0;
   const showResults = !isFocused || query.length === 0;
@@ -569,25 +641,40 @@ export const SearchScreen = () => {
       {/* ── Results area ── */}
       {showResults && (
         <>
-          {/* Filter row — always visible, tappable */}
-          <Pressable
-            style={styles.locationRow}
-            onPress={() => setShowLocationModal(true)}
-          >
-            <Text style={styles.locationPin}>📍</Text>
-            <Text style={[styles.locationText, !hasFilters && styles.locationPlaceholder]}>
-              {filterLabel}
-            </Text>
-            {hasFilters && (
-              <Pressable
-                hitSlop={10}
-                onPress={() => { setCity(''); setState(''); setSchool(''); }}
-                style={styles.locationClear}
-              >
-                <Text style={styles.locationClearText}>✕</Text>
-              </Pressable>
-            )}
-          </Pressable>
+          {/* Filter pill row */}
+          <View style={styles.filterPillRow}>
+            {/* Location pill */}
+            <Pressable
+              style={[styles.filterPill, hasLocation && styles.filterPillActive]}
+              onPress={() => setShowLocationModal(true)}
+            >
+              <Text style={styles.filterPillIcon}>📍</Text>
+              <Text style={styles.filterPillText} numberOfLines={1}>
+                {locationLabel ?? 'Location'}
+              </Text>
+              {hasLocation && (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => { setCity(''); setState(''); setSchool(''); }}
+                >
+                  <Text style={styles.filterPillClear}>✕</Text>
+                </Pressable>
+              )}
+            </Pressable>
+
+            {/* Role pill */}
+            <Pressable
+              style={[styles.filterPill, hasRoleFilter && styles.filterPillActive]}
+              onPress={() => setShowRoleModal(true)}
+            >
+              <Text style={styles.filterPillText}>{roleLabel}</Text>
+              {hasRoleFilter && (
+                <Pressable hitSlop={8} onPress={() => { roleTypes.forEach(r => toggleRoleType(r)); }}>
+                  <Text style={styles.filterPillClear}>✕</Text>
+                </Pressable>
+              )}
+            </Pressable>
+          </View>
 
           {/* Error banner */}
           {error && (
@@ -613,17 +700,23 @@ export const SearchScreen = () => {
             />
           ) : (
             <FlatList
-              data={MOCK_PEOPLE}
+              data={filteredPeople}
               keyExtractor={(item) => item.id}
               renderItem={renderPeopleCard}
               contentContainerStyle={styles.peopleListContent}
               showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>No people found</Text>
+                  <Text style={styles.emptySubtext}>Try a different role filter</Text>
+                </View>
+              }
             />
           )}
         </>
       )}
 
-      {/* ── Filters modal ── */}
+      {/* ── Location/school filters modal ── */}
       <FiltersModal
         visible={showLocationModal}
         initialCity={city}
@@ -631,6 +724,15 @@ export const SearchScreen = () => {
         initialSchool={school}
         onApply={handleFiltersApply}
         onClose={() => setShowLocationModal(false)}
+      />
+
+      {/* ── Role filter modal ── */}
+      <RoleFilterModal
+        visible={showRoleModal}
+        selected={roleTypes}
+        onToggle={toggleRoleType}
+        onClear={() => roleTypes.slice().forEach(r => toggleRoleType(r))}
+        onClose={() => setShowRoleModal(false)}
       />
 
       {/* ── Post detail modal ── */}
@@ -738,13 +840,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  // Location row
-  locationRow: {
+  // Filter pill row
+  filterPillRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
     marginBottom: 12,
+    gap: 10,
   },
+  filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  filterPillActive: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  filterPillIcon: {
+    fontSize: 12,
+  },
+  filterPillText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    maxWidth: 130,
+  },
+  filterPillClear: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    marginLeft: 2,
+    opacity: 0.7,
+  },
+
+  // Role grid inside modal
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  rolePill: {
+    borderWidth: 1.5,
+    borderColor: '#CCCCCC',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  rolePillActive: {
+    backgroundColor: '#1A1A1A',
+    borderColor: '#1A1A1A',
+  },
+  rolePillText: {
+    fontSize: 14,
+    color: '#444444',
+    fontWeight: '500',
+  },
+  rolePillTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Location row (kept for reference — replaced by pill row above)
   locationPin: {
     fontSize: 13,
     marginRight: 4,
