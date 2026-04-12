@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { firestore, Collections } from '../services/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db, Collections } from '../services/firebase';
 import { UserProfile } from '../types/user';
 
 export const useUserProfile = (userId: string) => {
@@ -10,21 +11,20 @@ export const useUserProfile = (userId: string) => {
   useEffect(() => {
     if (!userId) return;
 
-    const unsubscribe = firestore()
-      .collection(Collections.USERS)
-      .doc(userId)
-      .onSnapshot(
-        doc => {
-          if (doc.exists()) {
-            setProfile({ id: doc.id, ...doc.data() } as UserProfile);
-          }
-          setLoading(false);
-        },
-        err => {
-          setError(err.message);
-          setLoading(false);
+    const ref = doc(db, Collections.USERS, userId);
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        if (snap.exists()) {
+          setProfile({ id: snap.id, ...snap.data() } as UserProfile);
         }
-      );
+        setLoading(false);
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      }
+    );
 
     return unsubscribe;
   }, [userId]);
