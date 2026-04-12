@@ -172,8 +172,8 @@ export const ProfileScreen = () => {
         <Image
           source={
             basicInfo.headshotUrl
-              ? { uri: basicInfo.headshotUrl }
-              : require('../../assets/default-avatar.png')
+            ? { uri: basicInfo.headshotUrl }
+            : { uri: 'https://ui-avatars.com/api/?name=User&background=888&color=fff' }
           }
           style={styles.headshot}
         />
