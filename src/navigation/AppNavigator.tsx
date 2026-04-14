@@ -5,6 +5,7 @@ import { SvgXml } from 'react-native-svg';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SavesScreen } from '../screens/SavesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -38,11 +39,11 @@ const HomeScreen = () => (
   </View>
 );
 
-const NotificationsScreen = () => (
-  <View style={{ flex: 1, backgroundColor: '#2D2C2C', justifyContent: 'center', alignItems: 'center' }}>
-    <Text style={{ color: '#FFFFFF' }}>Notifications — coming soon</Text>
-  </View>
-);
+// const NotificationsScreen = () => (
+//   <View style={{ flex: 1, backgroundColor: '#2D2C2C', justifyContent: 'center', alignItems: 'center' }}>
+//     <Text style={{ color: '#FFFFFF' }}>Notifications — coming soon</Text>
+//   </View>
+// );
 
 export const AppNavigator = () => (
   <Tab.Navigator
