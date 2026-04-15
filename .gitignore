@@ -84,6 +84,9 @@ yarn-error.log
 ios/
 android/
 
+# Claude Code worktrees
+.claude/worktrees/
+
 # Firebase configuration files
 GoogleService-Info.plist
 ios/GoogleService-Info.plist

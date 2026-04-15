@@ -7,7 +7,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cue.app"
+      "bundleIdentifier": "com.cue.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.cue.app"
@@ -24,6 +27,11 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5ba305ba-ae2b-440c-9733-2c4dfd250e46"
+      }
+    }
   }
 }

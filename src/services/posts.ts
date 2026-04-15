@@ -1,12 +1,7 @@
 import firebase from 'firebase/compat/app';
 import { firestore, storage, Collections } from './firebase';
-import { Post, RoleType } from '../types/post';
+import { Post, Role, RoleType, ShootingTimeline, ShootingLocation, PostedBy } from '../types/post';
 
-
-const uriToBlob = async (uri: string): Promise<Blob> => {
-  const response = await fetch(uri);
-  return response.blob();
-};
 
 const uploadFiles = async (uris: string[], folder: string): Promise<string[]> => {
   return Promise.all(
@@ -21,29 +16,38 @@ const uploadFiles = async (uris: string[], folder: string): Promise<string[]> =>
 
 interface CreatePostParams {
   filmName: string;
-  roleTypes: string[];
+  director: string[];
+  recruitmentDeadline: string;
+  shootingTimeline: ShootingTimeline;
+  roles: Role[];
+  shootingLocation: ShootingLocation;
+  postedBy: PostedBy;
+  description?: string;
+  tags?: string[];
+  requirements?: { portfolioWork: boolean; coverLetter: boolean };
   imageUris?: string[];
   videoUris?: string[];
 }
 
 export const createPost = async (
-  userId: string,
   params: CreatePostParams
 ): Promise<string> => {
-  const { filmName, roleTypes, imageUris = [], videoUris = [] } = params;
+  const { imageUris = [], videoUris = [], ...postFields } = params;
 
   const [imageUrls, videoUrls] = await Promise.all([
     imageUris.length ? uploadFiles(imageUris, 'posts/images') : Promise.resolve([]),
     videoUris.length ? uploadFiles(videoUris, 'posts/videos') : Promise.resolve([]),
   ]);
 
+  const postData = buildPostForFirestore({
+    ...postFields,
+    media: { images: imageUrls.map((url, i) => ({ id: String(i), url, caption: '' })), videos: [] },
+  });
+
   const docRef = await firestore()
     .collection(Collections.POSTS)
     .add({
-      filmName,
-      roleTypes,
-      media: { images: imageUrls, videos: videoUrls },
-      postedBy: userId,
+      ...postData,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
 

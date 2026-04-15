@@ -54,6 +54,12 @@ export interface Post {
   shootingLocation: ShootingLocation;
   postedBy: PostedBy;
   media: PostMedia;
+  description?: string;
+  tags?: string[];
+  requirements?: {
+    portfolioWork: boolean;
+    coverLetter: boolean;
+  };
  
   // ── Firestore denormalized fields ──────────────────────────────────────
   // These are generated at write-time by buildPostForFirestore() to enable
