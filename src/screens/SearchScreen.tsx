@@ -26,7 +26,6 @@ import { Post, RoleType, ALL_ROLE_TYPES } from '../types/post';
 import { UserProfile } from '../types/user';
 import { MOCK_PEOPLE } from '../data/mockPeople';
 import { ApplyScreen } from './ApplyScreen';
-import { PostingScreen } from './PostingScreen';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -493,7 +492,6 @@ export const SearchScreen = () => {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
   const [applyPost, setApplyPost] = useState<Post | null>(null);
-  const [showPostingScreen, setShowPostingScreen] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   const {
@@ -750,20 +748,6 @@ export const SearchScreen = () => {
         visible={applyPost !== null}
         onClose={() => setApplyPost(null)}
       />
-
-      {/* ── Posting screen ── */}
-      <PostingScreen
-        visible={showPostingScreen}
-        onClose={() => setShowPostingScreen(false)}
-      />
-
-      {/* ── Create post button ── */}
-      <TouchableOpacity
-        style={styles.createPostBtn}
-        onPress={() => setShowPostingScreen(true)}
-      >
-        <Text style={styles.createPostBtnText}>+</Text>
-      </TouchableOpacity>
 
       {/* ── Person profile placeholder modal ── */}
       <Modal
@@ -1246,30 +1230,6 @@ const styles = StyleSheet.create({
   profilePlaceholderMsg: {
     color: '#888888',
     fontSize: 15,
-  },
-
-  // Create post button
-  createPostBtn: {
-    position: 'absolute',
-    bottom: 32,
-    alignSelf: 'center',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  createPostBtnText: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '300',
   },
 
   // Error

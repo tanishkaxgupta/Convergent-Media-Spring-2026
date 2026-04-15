@@ -5,7 +5,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,7 +33,6 @@ interface RoleRow {
 interface Props {
   visible: boolean;
   onClose: () => void;
-  /** Temporary: pass current user id until auth is wired up */
   currentUserId?: string;
   currentUserName?: string;
   currentUserSchool?: string;
@@ -90,7 +88,9 @@ export const PostingScreen: React.FC<Props> = ({
   };
 
   const removeRole = (index: number) => {
-    setRoles(prev => prev.filter((_, i) => i !== index));
+    if (roles.length > 1) {
+      setRoles(prev => prev.filter((_, i) => i !== index));
+    }
   };
 
   const resetForm = () => {
@@ -206,32 +206,29 @@ export const PostingScreen: React.FC<Props> = ({
                 onChangeText={setTitle}
               />
 
-              {/* Date & location pills */}
               <View style={styles.pillRow}>
-                <TouchableOpacity style={styles.pill}>
+                <View style={styles.pill}>
                   <Text style={styles.pillIcon}>📅</Text>
                   <TextInput
                     style={styles.pillText}
                     placeholder="Set date & time"
-                    placeholderTextColor="#FFFFFF"
+                    placeholderTextColor="#AAAAAA"
                     value={dateTime}
                     onChangeText={setDateTime}
                   />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.pill}>
+                </View>
+                <View style={styles.pill}>
                   <Text style={styles.pillIcon}>📍</Text>
                   <TextInput
                     style={styles.pillText}
                     placeholder="Location"
-                    placeholderTextColor="#FFFFFF"
+                    placeholderTextColor="#AAAAAA"
                     value={location}
                     onChangeText={setLocation}
                   />
-                </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Description */}
               <TextInput
                 style={styles.descriptionInput}
                 placeholder="Add your project's information"
@@ -242,7 +239,6 @@ export const PostingScreen: React.FC<Props> = ({
                 textAlignVertical="top"
               />
 
-              {/* Tags */}
               <View style={styles.tagRow}>
                 {tags.map(tag => (
                   <TouchableOpacity
@@ -268,7 +264,6 @@ export const PostingScreen: React.FC<Props> = ({
             {/* ── Available roles card ── */}
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Available roles</Text>
-
               {roles.map((role, index) => (
                 <View key={index} style={styles.roleRow}>
                   <View style={styles.roleTextGroup}>
@@ -293,7 +288,6 @@ export const PostingScreen: React.FC<Props> = ({
                   />
                 </View>
               ))}
-
               <TouchableOpacity style={styles.addRoleBtn} onPress={addRole}>
                 <Text style={styles.addRoleBtnText}>+ Add a role</Text>
               </TouchableOpacity>
@@ -302,33 +296,20 @@ export const PostingScreen: React.FC<Props> = ({
             {/* ── Requirements card ── */}
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Requirements</Text>
-
               <TouchableOpacity
                 style={styles.requirementRow}
                 onPress={() => setReqPortfolio(p => !p)}
               >
                 <Text style={styles.requirementLabel}>Portfolio work</Text>
-                <View
-                  style={[
-                    styles.requirementCircle,
-                    reqPortfolio && styles.requirementCircleActive,
-                  ]}
-                />
+                <View style={[styles.requirementCircle, reqPortfolio && styles.requirementCircleActive]} />
               </TouchableOpacity>
-
               <View style={styles.divider} />
-
               <TouchableOpacity
                 style={styles.requirementRow}
                 onPress={() => setReqCoverLetter(p => !p)}
               >
                 <Text style={styles.requirementLabel}>Cover letter</Text>
-                <View
-                  style={[
-                    styles.requirementCircle,
-                    reqCoverLetter && styles.requirementCircleActive,
-                  ]}
-                />
+                <View style={[styles.requirementCircle, reqCoverLetter && styles.requirementCircleActive]} />
               </TouchableOpacity>
             </View>
 
@@ -354,10 +335,7 @@ export const PostingScreen: React.FC<Props> = ({
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: BG,
-  },
+  root: { flex: 1, backgroundColor: BG },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,182 +343,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  cancelBtn: {
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  headerTitle: {
-    fontSize: 14,
-    color: '#666666',
-    letterSpacing: 0.5,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-
-  // Card
-  card: {
-    backgroundColor: CARD_BG,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-
-  // Title input
-  titleInput: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    padding: 0,
-  },
-
-  // Pills
-  pillRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
+  cancelBtn: { fontSize: 16, color: '#1A1A1A' },
+  headerTitle: { fontSize: 14, color: '#666666', letterSpacing: 0.5 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, gap: 12 },
+  card: { backgroundColor: CARD_BG, borderRadius: 16, padding: 16, gap: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
+  titleInput: { fontSize: 20, fontWeight: '600', color: '#1A1A1A', padding: 0 },
+  pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PILL_BG,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 4,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: PILL_BG, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 6, gap: 4,
   },
-  pillIcon: {
-    fontSize: 12,
-  },
-  pillText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    minWidth: 80,
-    padding: 0,
-  },
-
-  // Description
+  pillIcon: { fontSize: 12 },
+  pillText: { color: '#FFFFFF', fontSize: 13, minWidth: 80, padding: 0 },
   descriptionInput: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    color: '#1A1A1A',
-    minHeight: 80,
+    backgroundColor: '#F5F5F5', borderRadius: 10,
+    padding: 12, fontSize: 14, color: '#1A1A1A', minHeight: 80,
   },
-
-  // Tags
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 6,
-  },
-  tagPill: {
-    backgroundColor: '#E8E8E8',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  tagPillText: {
-    fontSize: 13,
-    color: '#333333',
-  },
-  tagInput: {
-    fontSize: 13,
-    color: '#333333',
-    minWidth: 80,
-    padding: 0,
-  },
-
-  // Roles
-  roleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  roleTextGroup: {
-    flex: 1,
-    gap: 2,
-  },
-  roleNameInput: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1A1A1A',
-    padding: 0,
-  },
-  roleDescInput: {
-    fontSize: 12,
-    color: '#AAAAAA',
-    padding: 0,
-  },
-  roleCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#CCCCCC',
-    marginLeft: 12,
-  },
-  addRoleBtn: {
-    alignSelf: 'flex-start',
-  },
-  addRoleBtnText: {
-    fontSize: 14,
-    color: '#888888',
-  },
-
-  // Requirements
-  requirementRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  requirementLabel: {
-    fontSize: 14,
-    color: '#1A1A1A',
-  },
-  requirementCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#CCCCCC',
-  },
-  requirementCircleActive: {
-    backgroundColor: '#1A1A1A',
-    borderColor: '#1A1A1A',
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E8E8E8',
-  },
-
-  // Submit
-  submitBtn: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  submitBtnDisabled: {
-    opacity: 0.5,
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  tagPill: { backgroundColor: '#E8E8E8', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  tagPillText: { fontSize: 13, color: '#333333' },
+  tagInput: { fontSize: 13, color: '#333333', minWidth: 80, padding: 0 },
+  roleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  roleTextGroup: { flex: 1, gap: 2 },
+  roleNameInput: { fontSize: 14, fontWeight: '500', color: '#1A1A1A', padding: 0 },
+  roleDescInput: { fontSize: 12, color: '#AAAAAA', padding: 0 },
+  roleCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CCCCCC', marginLeft: 12 },
+  addRoleBtn: { alignSelf: 'flex-start' },
+  addRoleBtnText: { fontSize: 14, color: '#888888' },
+  requirementRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  requirementLabel: { fontSize: 14, color: '#1A1A1A' },
+  requirementCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CCCCCC' },
+  requirementCircleActive: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E8E8E8' },
+  submitBtn: { backgroundColor: '#1A1A1A', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
+  submitBtnDisabled: { opacity: 0.5 },
+  submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

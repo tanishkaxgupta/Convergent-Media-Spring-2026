@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SavesScreen } from '../screens/SavesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { PostingScreen } from '../screens/PostingScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -33,69 +34,78 @@ const PLUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fi
   <path d="M24 14V34M14 24H34" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
 </svg>`;
 
-const HomeScreen = () => (
-  <View style={{ flex: 1, backgroundColor: '#2D2C2C', justifyContent: 'center', alignItems: 'center' }}>
-    <Text style={{ color: '#FFFFFF' }}>Home — coming soon</Text>
-  </View>
-);
+// Dummy screen — never actually shown, the + tab opens a modal instead
+const EmptyScreen = () => <View style={{ flex: 1, backgroundColor: '#2D2C2C' }} />;
 
-// const NotificationsScreen = () => (
-//   <View style={{ flex: 1, backgroundColor: '#2D2C2C', justifyContent: 'center', alignItems: 'center' }}>
-//     <Text style={{ color: '#FFFFFF' }}>Notifications — coming soon</Text>
-//   </View>
-// );
+export const AppNavigator = () => {
+  const [showPosting, setShowPosting] = useState(false);
 
-export const AppNavigator = () => (
-  <Tab.Navigator
-    screenOptions={{
-      headerShown: false,
-      tabBarStyle: {
-        backgroundColor: '#FFFFFF',
-        borderTopColor: '#E5E5E5',
-        height: 80,
-        paddingBottom: 16,
-      },
-      tabBarActiveTintColor: '#000000',
-      tabBarInactiveTintColor: '#555555',
-      tabBarLabel: () => null,
-    }}
-  >
-    <Tab.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{
-        tabBarIcon: () => <SvgXml xml={HOME_SVG} width={26} height={26} />,
-      }}
-    />
-    <Tab.Screen
-      name="Notifications"
-      component={NotificationsScreen}
-      options={{
-        tabBarIcon: () => <SvgXml xml={BELL_SVG} width={26} height={26} />,
-      }}
-    />
-    <Tab.Screen
-      name="Post"
-      component={SearchScreen}
-      options={{
-        tabBarIcon: () => <SvgXml xml={PLUS_SVG} width={48} height={48} />,
-      }}
-    />
-    <Tab.Screen
-      name="Saves"
-      component={SavesScreen}
-      options={{
-        tabBarIcon: () => <SvgXml xml={BOOKMARK_SVG} width={14} height={18} />,
-      }}
-    />
-    <Tab.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{
-        tabBarIcon: () => <SvgXml xml={USER_SVG} width={26} height={26} />,
-      }}
-    />
-  </Tab.Navigator>
-);
+  return (
+    <>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#FFFFFF',
+            borderTopColor: '#E5E5E5',
+            height: 80,
+            paddingBottom: 16,
+          },
+          tabBarActiveTintColor: '#000000',
+          tabBarInactiveTintColor: '#555555',
+          tabBarLabel: () => null,
+        }}
+      >
+        <Tab.Screen
+          name="Home"
+          component={SearchScreen}
+          options={{
+            tabBarIcon: () => <SvgXml xml={HOME_SVG} width={26} height={26} />,
+          }}
+        />
+        <Tab.Screen
+          name="Notifications"
+          component={NotificationsScreen}
+          options={{
+            tabBarIcon: () => <SvgXml xml={BELL_SVG} width={26} height={26} />,
+          }}
+        />
+        <Tab.Screen
+          name="Post"
+          component={EmptyScreen}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setShowPosting(true);
+            },
+          }}
+          options={{
+            tabBarIcon: () => <SvgXml xml={PLUS_SVG} width={48} height={48} />,
+          }}
+        />
+        <Tab.Screen
+          name="Saves"
+          component={SavesScreen}
+          options={{
+            tabBarIcon: () => <SvgXml xml={BOOKMARK_SVG} width={14} height={18} />,
+          }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            tabBarIcon: () => <SvgXml xml={USER_SVG} width={26} height={26} />,
+          }}
+        />
+      </Tab.Navigator>
+
+      {/* Slides up over whatever tab you're on */}
+      <PostingScreen
+        visible={showPosting}
+        onClose={() => setShowPosting(false)}
+      />
+    </>
+  );
+};
 
 const styles = StyleSheet.create({});
