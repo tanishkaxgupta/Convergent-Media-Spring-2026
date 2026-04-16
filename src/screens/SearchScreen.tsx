@@ -14,6 +14,25 @@ import {
   View,
   TouchableOpacity,
 } from 'react-native';
+import { SvgXml } from 'react-native-svg';
+
+const SEARCH_ICON = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="8" cy="8" r="5.5" stroke="#888888" stroke-width="1.6"/>
+  <path d="M12.5 12.5L16 16" stroke="#888888" stroke-width="1.6" stroke-linecap="round"/>
+</svg>`;
+
+const CLEAR_ICON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 2L12 12M12 2L2 12" stroke="#999999" stroke-width="1.6" stroke-linecap="round"/>
+</svg>`;
+
+const PIN_ICON = `<svg width="12" height="15" viewBox="0 0 12 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M6 0.5C3.515 0.5 1.5 2.515 1.5 5C1.5 8.375 6 14.5 6 14.5C6 14.5 10.5 8.375 10.5 5C10.5 2.515 8.485 0.5 6 0.5Z" stroke="white" stroke-width="1.4" stroke-linejoin="round"/>
+  <circle cx="6" cy="5" r="1.5" fill="white"/>
+</svg>`;
+
+const CHEVRON_DOWN = `<svg width="11" height="7" viewBox="0 0 11 7" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M1 1L5.5 6L10 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // listContent paddingHorizontal (16) + card padding (16) on each side
@@ -118,10 +137,10 @@ const PostDetailModal = ({
           {/* Meta row */}
           <View style={styles.detailMetaRow}>
             <Text style={styles.detailMetaItem}>
-              📍 {post.shootingLocation.city}, {post.shootingLocation.state}
+              {post.shootingLocation.city}, {post.shootingLocation.state}
             </Text>
-            <Text style={styles.detailMetaItem}>🎬 {dateRange}</Text>
-            <Text style={styles.detailMetaItem}>⏰ Apply by {deadlineStr}</Text>
+            <Text style={styles.detailMetaItem}>{dateRange}</Text>
+            <Text style={styles.detailMetaItem}>Apply by {deadlineStr}</Text>
           </View>
 
           {post.shootingLocation.details ? (
@@ -381,7 +400,7 @@ const FiltersModal = ({
             disabled={detecting}
           >
             <Text style={styles.detectButtonText}>
-              {detecting ? 'Detecting…' : '📍 Use my current location'}
+              {detecting ? 'Detecting…' : 'Use my current location'}
             </Text>
           </Pressable>
 
@@ -602,7 +621,7 @@ export const SearchScreen = () => {
       {/* ── Search bar ── */}
       <View style={[styles.searchBarWrapper, { paddingTop: top + 16 }]}>
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <SvgXml xml={SEARCH_ICON} width={18} height={18} style={styles.searchIcon} />
           <TextInput
             ref={inputRef}
             value={query}
@@ -619,7 +638,7 @@ export const SearchScreen = () => {
           />
           {query.length > 0 && (
             <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <Text style={styles.clearIcon}>✕</Text>
+              <SvgXml xml={CLEAR_ICON} width={14} height={14} />
             </Pressable>
           )}
         </View>
@@ -648,7 +667,7 @@ export const SearchScreen = () => {
               style={[styles.filterPill, hasLocation && styles.filterPillActive]}
               onPress={() => setShowLocationModal(true)}
             >
-              <Text style={styles.filterPillIcon}>📍</Text>
+              <SvgXml xml={PIN_ICON} width={12} height={15} />
               <Text style={styles.filterPillText} numberOfLines={1}>
                 {locationLabel ?? 'Location'}
               </Text>
@@ -657,7 +676,7 @@ export const SearchScreen = () => {
                   hitSlop={8}
                   onPress={() => { setCity(''); setState(''); setSchool(''); }}
                 >
-                  <Text style={styles.filterPillClear}>✕</Text>
+                  <SvgXml xml={CLEAR_ICON} width={10} height={10} />
                 </Pressable>
               )}
             </Pressable>
@@ -668,10 +687,12 @@ export const SearchScreen = () => {
               onPress={() => setShowRoleModal(true)}
             >
               <Text style={styles.filterPillText}>{roleLabel}</Text>
-              {hasRoleFilter && (
+              {hasRoleFilter ? (
                 <Pressable hitSlop={8} onPress={() => { roleTypes.forEach(r => toggleRoleType(r)); }}>
-                  <Text style={styles.filterPillClear}>✕</Text>
+                  <SvgXml xml={CLEAR_ICON} width={10} height={10} />
                 </Pressable>
+              ) : (
+                <SvgXml xml={CHEVRON_DOWN} width={11} height={7} />
               )}
             </Pressable>
           </View>
@@ -802,7 +823,6 @@ const styles = StyleSheet.create({
     height: 48,
   },
   searchIcon: {
-    fontSize: 16,
     marginRight: 8,
   },
   searchInput: {
@@ -859,9 +879,6 @@ const styles = StyleSheet.create({
   },
   filterPillActive: {
     backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  filterPillIcon: {
-    fontSize: 12,
   },
   filterPillText: {
     fontSize: 13,
