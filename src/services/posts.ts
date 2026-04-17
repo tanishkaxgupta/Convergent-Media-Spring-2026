@@ -34,7 +34,7 @@ export const createPost = async (
 ): Promise<string> => {
   const { imageUris = [], videoUris = [], ...postFields } = params;
 
-  const [imageUrls, videoUrls] = await Promise.all([
+  const [imageUrls] = await Promise.all([
     imageUris.length ? uploadFiles(imageUris, 'posts/images') : Promise.resolve([]),
     videoUris.length ? uploadFiles(videoUris, 'posts/videos') : Promise.resolve([]),
   ]);
@@ -44,10 +44,13 @@ export const createPost = async (
     media: { images: imageUrls.map((url, i) => ({ id: String(i), url, caption: '' })), videos: [] },
   });
 
+  // Firestore rejects undefined field values — strip them before writing.
+  const cleanData = JSON.parse(JSON.stringify(postData));
+
   const docRef = await firestore()
     .collection(Collections.POSTS)
     .add({
-      ...postData,
+      ...cleanData,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
 
