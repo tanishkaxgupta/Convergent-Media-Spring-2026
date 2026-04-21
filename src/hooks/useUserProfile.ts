@@ -15,7 +15,7 @@ export const useUserProfile = (userId: string) => {
       .doc(userId)
       .onSnapshot(
         doc => {
-          if (doc.exists()) {
+          if (doc.exists) {
             setProfile({ id: doc.id, ...doc.data() } as UserProfile);
           }
           setLoading(false);

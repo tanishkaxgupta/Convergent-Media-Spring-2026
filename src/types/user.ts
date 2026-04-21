@@ -76,4 +76,6 @@ export interface UserProfile {
   };
   myPostings: string[];
   myApplications: string[];
+  /** Firestore post IDs the user bookmarked (Saves tab). */
+  savedPostId?: string[];
 }

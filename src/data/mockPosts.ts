@@ -83,7 +83,7 @@ export const MOCK_POSTS: Post[] = [
     id: 'mock-3',
     filmName: 'Quiet Hours',
     director: ['Sofia Reyes'],
-    recruitmentDeadline: '2026-04-30T00:00:00Z',
+    recruitmentDeadline: '2026-03-28T00:00:00Z',
     shootingTimeline: {
       startDate: '2026-05-10T00:00:00Z',
       endDate: '2026-05-25T00:00:00Z',
@@ -113,7 +113,7 @@ export const MOCK_POSTS: Post[] = [
     id: 'mock-4',
     filmName: 'The Last Signal',
     director: ['James Park'],
-    recruitmentDeadline: '2026-05-10T00:00:00Z',
+    recruitmentDeadline: '2026-03-15T00:00:00Z',
     shootingTimeline: {
       startDate: '2026-06-01T00:00:00Z',
       endDate: '2026-06-20T00:00:00Z',

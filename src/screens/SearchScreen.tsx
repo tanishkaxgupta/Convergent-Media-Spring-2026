@@ -45,6 +45,8 @@ import { Post, RoleType, ALL_ROLE_TYPES } from '../types/post';
 import { UserProfile } from '../types/user';
 import { MOCK_PEOPLE } from '../data/mockPeople';
 import { ApplyScreen } from './ApplyScreen';
+import { firestore, Collections } from '../services/firebase';
+import { ProfileView } from './ProfileScreen';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -60,6 +62,19 @@ function formatDateRange(startISO: string, endISO: string): string {
   const end = new Date(endISO);
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${months[start.getMonth()]} ${start.getDate()} – ${months[end.getMonth()]} ${end.getDate()}`;
+}
+
+function getFirstParagraph(text: string): string {
+  const normalized = text.trim();
+  if (!normalized) return '';
+
+  // Stop before markdown-like bullet lists if present.
+  const bulletStartIndex = normalized.search(/\n\s*[•*-]\s+/);
+  const textBeforeBullets =
+    bulletStartIndex === -1 ? normalized : normalized.slice(0, bulletStartIndex);
+
+  const firstParagraph = textBeforeBullets.split(/\n\s*\n/)[0] ?? textBeforeBullets;
+  return firstParagraph.replace(/\s+/g, ' ').trim();
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -83,10 +98,12 @@ const SuggestionRow = ({
 /** Full-screen modal showing all details for a post */
 const PostDetailModal = ({
   post,
+  posterHeadshotUrl,
   onClose,
   onApply,
 }: {
   post: Post | null;
+  posterHeadshotUrl?: string;
   onClose: () => void;
   onApply: (post: Post) => void;
 }) => {
@@ -117,7 +134,11 @@ const PostDetailModal = ({
         >
           {/* Poster info */}
           <View style={styles.detailPosterRow}>
-            <View style={styles.detailAvatar} />
+            {posterHeadshotUrl ? (
+              <Image source={{ uri: posterHeadshotUrl }} style={styles.detailAvatar} resizeMode="cover" />
+            ) : (
+              <View style={styles.detailAvatar} />
+            )}
             <View>
               <Text style={styles.detailPosterName}>{post.postedBy.name}</Text>
               {post.postedBy.school ? (
@@ -195,22 +216,17 @@ const PostDetailModal = ({
 /** Post card matching the Figma design */
 const PostCard = ({
   post,
+  posterHeadshotUrl,
   onApply,
   onPress,
 }: {
   post: Post;
+  posterHeadshotUrl?: string;
   onApply: (post: Post) => void;
   onPress: (post: Post) => void;
 }) => {
-  const description = post.roles[0]?.description ?? `Looking for crew for "${post.filmName}"`;
-  const dateRange = formatDateRange(
-    post.shootingTimeline.startDate,
-    post.shootingTimeline.endDate,
-  );
-  const bullets: string[] = [
-    `filming in ${post.shootingLocation.city}, ${dateRange}`,
-    ...post.roles.slice(1).map((r) => r.description),
-  ].slice(0, 4);
+  const rawDescription = post.roles[0]?.description ?? `Looking for crew for "${post.filmName}"`;
+  const description = getFirstParagraph(rawDescription);
 
   const hasImages = post.media.images.length > 0;
 
@@ -218,17 +234,16 @@ const PostCard = ({
     <TouchableOpacity activeOpacity={0.85} onPress={() => onPress(post)} style={styles.card}>
       {/* Header: avatar + poster name */}
       <View style={styles.cardHeader}>
-        <View style={styles.avatar} />
+        {posterHeadshotUrl ? (
+          <Image source={{ uri: posterHeadshotUrl }} style={styles.avatar} resizeMode="cover" />
+        ) : (
+          <View style={styles.avatar} />
+        )}
         <Text style={styles.posterName}>{post.postedBy.name}</Text>
       </View>
 
       {/* Main description */}
       <Text style={styles.cardDescription}>{description}</Text>
-
-      {/* Bullet points */}
-      {bullets.map((b, i) => (
-        <Text key={i} style={styles.bulletItem}>{'• '}{b}</Text>
-      ))}
 
       {/* Photos */}
       {hasImages && (
@@ -280,7 +295,11 @@ const PeopleCard = ({
   const location = person.basicInfo.school ?? `${person.basicInfo.location.city}, ${person.basicInfo.location.state}`;
   return (
     <TouchableOpacity activeOpacity={0.8} onPress={() => onPress(person)} style={styles.peopleCard}>
-      <View style={styles.peopleAvatar} />
+      {person.basicInfo.headshotUrl ? (
+        <Image source={{ uri: person.basicInfo.headshotUrl }} style={styles.peopleAvatar} />
+      ) : (
+        <View style={styles.peopleAvatar} />
+      )}
       <View style={styles.peopleCardText}>
         <Text style={styles.peopleCardName}>{person.basicInfo.name}</Text>
         <Text style={styles.peopleCardSub}>{role} @ {location}</Text>
@@ -511,7 +530,22 @@ export const SearchScreen = () => {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
   const [applyPost, setApplyPost] = useState<Post | null>(null);
+  const [firestoreUsers, setFirestoreUsers] = useState<UserProfile[]>([]);
   const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    // @ts-ignore – process.env is available at runtime in Expo/Metro
+    const isConfigured = !!(process.env.EXPO_PUBLIC_FIREBASE_API_KEY && process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID);
+    if (!isConfigured) return;
+    firestore()
+      .collection(Collections.USERS)
+      .get()
+      .then(snap => {
+        const users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
+        if (users.length > 0) setFirestoreUsers(users);
+      })
+      .catch(() => {});
+  }, []);
 
   const {
     results,
@@ -559,13 +593,27 @@ export const SearchScreen = () => {
     : `Role (${roleTypes.length})`;
   const hasRoleFilter = roleTypes.length > 0;
 
+  const allPeople = (firestoreUsers.length > 0 ? firestoreUsers : MOCK_PEOPLE)
+    .filter(p => p.id !== 'user_001');
+
+  const getPosterHeadshotUrl = (post: Post): string | undefined => {
+    const byId = allPeople.find(person => person.id === post.postedBy.userId);
+    if (byId?.basicInfo.headshotUrl) return byId.basicInfo.headshotUrl;
+
+    const postName = post.postedBy.name.trim().toLowerCase();
+    const byName = allPeople.find(
+      person => person.basicInfo.name.trim().toLowerCase() === postName
+    );
+    return byName?.basicInfo.headshotUrl;
+  };
+
   // Filter people client-side by selected role types
   const filteredPeople = hasRoleFilter
-    ? MOCK_PEOPLE.filter(p =>
+    ? allPeople.filter(p =>
         roleTypes.includes(p.roleInfo.primaryRole) ||
         (p.roleInfo.secondaryRoles as RoleType[]).some(r => roleTypes.includes(r))
       )
-    : MOCK_PEOPLE;
+    : allPeople;
 
   const showSuggestions = isFocused && query.length > 0 && suggestions.length > 0;
   const showResults = !isFocused || query.length === 0;
@@ -590,6 +638,7 @@ export const SearchScreen = () => {
   const renderPostCard = ({ item }: { item: Post }) => (
     <PostCard
       post={item}
+      posterHeadshotUrl={getPosterHeadshotUrl(item)}
       onApply={handleApply}
       onPress={(post) => setSelectedPost(post)}
     />
@@ -759,6 +808,7 @@ export const SearchScreen = () => {
       {/* ── Post detail modal ── */}
       <PostDetailModal
         post={selectedPost}
+        posterHeadshotUrl={selectedPost ? getPosterHeadshotUrl(selectedPost) : undefined}
         onClose={() => setSelectedPost(null)}
         onApply={handleApply}
       />
@@ -770,7 +820,7 @@ export const SearchScreen = () => {
         onClose={() => setApplyPost(null)}
       />
 
-      {/* ── Person profile placeholder modal ── */}
+      {/* ── Person profile modal ── */}
       <Modal
         visible={selectedPerson !== null}
         animationType="slide"
@@ -786,15 +836,7 @@ export const SearchScreen = () => {
               <Text style={styles.detailBackText}>← Back</Text>
             </Pressable>
           </View>
-          <View style={styles.profilePlaceholder}>
-            <View style={styles.profilePlaceholderAvatar} />
-            <Text style={styles.profilePlaceholderName}>
-              {selectedPerson?.basicInfo.name}
-            </Text>
-            <Text style={styles.profilePlaceholderMsg}>
-              Profile page coming soon
-            </Text>
-          </View>
+          <ProfileView profile={selectedPerson} topPadding={16} />
         </View>
       </Modal>
     </View>
