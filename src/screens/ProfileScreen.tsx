@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
 import {
   ActivityIndicator,
   Dimensions,
@@ -630,9 +633,10 @@ export const ProfileView = ({
   topPadding?: number;
   isOwner?: boolean;
 }) => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [showGallery, setShowGallery] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  //const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [applyPost, setApplyPost] = useState<Post | null>(null);
 
   const { posts, loading: postsLoading } = useUserPosts(
@@ -655,10 +659,10 @@ export const ProfileView = ({
     ...attributes.skills.slice(0, 5),
   ].map(t => '#' + t.toLowerCase().replace(/\s+/g, ''));
 
-  function handleApply(post: Post) {
-    setSelectedPost(null);
-    setApplyPost(post);
-  }
+  // function handleApply(post: Post) {
+  //   setSelectedPost(null);
+  //   setApplyPost(post);
+  // }
 
   return (
     <>
@@ -748,7 +752,7 @@ export const ProfileView = ({
                 key={post.id}
                 style={styles.postCard}
                 activeOpacity={0.85}
-                onPress={() => setSelectedPost(post)}
+                onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
               >
                 <Text style={styles.postTitle}>{post.filmName}</Text>
                 <Text style={styles.postDescription} numberOfLines={3}>
@@ -778,11 +782,11 @@ export const ProfileView = ({
         />
       )}
 
-      <PostDetailModal
+      {/* <PostDetailModal
         post={selectedPost}
         onClose={() => setSelectedPost(null)}
         onApply={handleApply}
-      />
+      /> */}
 
       <ApplyScreen
         post={applyPost}
