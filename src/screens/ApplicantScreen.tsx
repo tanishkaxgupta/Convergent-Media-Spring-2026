@@ -14,12 +14,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NavigationProp } from '@react-navigation/native';
 import { firestore, Collections } from '../services/firebase';
 import { UserProfile } from '../types/user';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
-type Nav = NativeStackNavigationProp<RootStackParamList, 'Applicant'>;
+type Nav = NavigationProp<RootStackParamList, 'Applicant'>;
 type Route = RouteProp<RootStackParamList, 'Applicant'>;
 
 const BG = '#2C2C2C';

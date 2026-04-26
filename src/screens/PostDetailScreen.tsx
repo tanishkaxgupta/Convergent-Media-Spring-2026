@@ -10,13 +10,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NavigationProp } from '@react-navigation/native';
 import { SvgXml } from 'react-native-svg';
 import { firestore, Collections } from '../services/firebase';
 import { Post, RoleType } from '../types/post';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
-type Nav = NativeStackNavigationProp<RootStackParamList, 'PostDetail'>;
+type Nav = NavigationProp<RootStackParamList, 'PostDetail'>;
 type Route = RouteProp<RootStackParamList, 'PostDetail'>;
 
 const BG = '#2C2C2C';
