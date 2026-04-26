@@ -67,14 +67,17 @@ function normalizeSavedPostIdField(raw: unknown): string[] {
 
 const MOCK_POSTS_BY_ID: Record<string, Post> = Object.fromEntries(MOCK_POSTS.map(p => [p.id, p]));
 
+/** Demo saved post IDs when Firestore has none yet. */
+const FALLBACK_SAVED_IDS = ['mock-1', 'mock-2'];
+
 /** Demo applications so Applied / Past are populated when Firestore has none yet. */
 function buildFallbackApplications(): SavesApplication[] {
   const ts = (iso: string) => firebase.firestore.Timestamp.fromDate(new Date(iso));
   const rows: SavesApplication[] = [];
   const specs: { postId: string; status: string; appliedIso: string; rejectionReason?: string }[] = [
-    { postId: 'mock-1', status: 'pending', appliedIso: '2026-04-02T12:00:00Z' },
-    { postId: 'mock-2', status: 'pending', appliedIso: '2026-04-05T12:00:00Z' },
-    { postId: 'mock-3', status: 'accepted', appliedIso: '2026-03-20T12:00:00Z' },
+    { postId: 'mock-1', status: 'applied',       appliedIso: '2026-04-10T12:00:00Z' },
+    { postId: 'mock-2', status: 'under review',   appliedIso: '2026-04-05T12:00:00Z' },
+    { postId: 'mock-3', status: 'accepted',       appliedIso: '2026-03-20T12:00:00Z' },
     {
       postId: 'mock-4',
       status: 'rejected',
@@ -127,9 +130,11 @@ export function useSavesData() {
       .onSnapshot(
         snap => {
           const raw = snap.data()?.savedPostId;
-          setSavedPostId(normalizeSavedPostIdField(raw));
+          const ids = normalizeSavedPostIdField(raw);
+          // Fall back to demo saved IDs if Firestore returns nothing
+          setSavedPostId(ids.length > 0 ? ids : FALLBACK_SAVED_IDS);
         },
-        () => setSavedPostId([])
+        () => setSavedPostId(FALLBACK_SAVED_IDS)
       );
     return unsub;
   }, []);

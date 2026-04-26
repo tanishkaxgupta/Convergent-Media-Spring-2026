@@ -71,7 +71,7 @@ export const AppNavigator = () => {
             borderTopColor: '#E5E5E5',
             height: 80,
           },
-          tabBarActiveTintColor: '#000000',
+          tabBarActiveTintColor: '#E5674E',
           tabBarInactiveTintColor: '#AAAAAA',
           tabBarLabel: () => null,
           tabBarItemStyle: {

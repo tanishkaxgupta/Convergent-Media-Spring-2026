@@ -1,11 +1,12 @@
-import React from 'react';
-import { StatusBar, useColorScheme } from 'react-native';
+import React, { useState } from 'react';
+import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { LandingScreen } from './src/screens/LandingScreen';
 
 export default function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+  const [showLanding, setShowLanding] = useState(true);
 
   return (
     <SafeAreaProvider>
@@ -13,6 +14,9 @@ export default function App() {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
+      {showLanding && (
+        <LandingScreen onFinish={() => setShowLanding(false)} />
+      )}
     </SafeAreaProvider>
   );
 }

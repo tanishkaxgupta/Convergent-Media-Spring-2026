@@ -1,6 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import {
+  ActivityIndicator,
   Dimensions,
+  Image,
   Keyboard,
   Modal,
   ScrollView,
@@ -13,7 +16,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Post } from '../types/post';
+import { GalleryPhoto } from '../types/user';
 import { applyToPost } from '../services/posts';
+import { firestore, Collections } from '../services/firebase';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -229,90 +234,184 @@ const calStyles = StyleSheet.create({
   },
 });
 
-// ── Portfolio stack ───────────────────────────────────────────────────────────
+// ── Portfolio stack preview ───────────────────────────────────────────────────
 
 const PORTFOLIO_CARD_W = Math.round(SCREEN_WIDTH * 0.80);
 const PORTFOLIO_CARD_H = Math.round(PORTFOLIO_CARD_W * 0.6);
-// Back card offset: 32px right, 14px up — container must be wide/tall enough to fit
 const BACK_OFFSET_X = 30;
 const BACK_OFFSET_Y = 12;
 const PORTFOLIO_STACK_W = PORTFOLIO_CARD_W + BACK_OFFSET_X + 10;
 const PORTFOLIO_STACK_H = PORTFOLIO_CARD_H + BACK_OFFSET_Y + 4;
 
-/** Two stacked cards — back card rotated, front card flat on top */
-function PortfolioStack({ selected, onPress }: { selected: boolean; onPress: () => void }) {
+function PortfolioStack({ selectedCount, onPress }: { selectedCount: number; onPress: () => void }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.9}
       style={[portfolioStyles.container, { width: PORTFOLIO_STACK_W, height: PORTFOLIO_STACK_H }]}
     >
-      {/* Back card — gray, rotated clockwise, offset to upper-right */}
-      <View
-        style={[
-          portfolioStyles.card,
-          portfolioStyles.cardBack,
-          {
-            width: PORTFOLIO_CARD_W,
-            height: PORTFOLIO_CARD_H,
-            top: 0,
-            left: BACK_OFFSET_X,
-            transform: [{ rotate: '5deg' }],
-          },
-        ]}
-      />
-
-      {/* Front card — light blue, flat, anchored bottom-left */}
-      <View
-        style={[
-          portfolioStyles.card,
-          portfolioStyles.cardFront,
-          {
-            width: PORTFOLIO_CARD_W,
-            height: PORTFOLIO_CARD_H,
-            bottom: 0,
-            left: 0,
-            borderWidth: selected ? 2.5 : 0,
-            borderColor: selected ? '#1A1A1A' : 'transparent',
-          },
-        ]}
-      >
-        {selected && (
+      <View style={[portfolioStyles.card, portfolioStyles.cardBack, {
+        width: PORTFOLIO_CARD_W, height: PORTFOLIO_CARD_H,
+        top: 0, left: BACK_OFFSET_X, transform: [{ rotate: '5deg' }],
+      }]} />
+      <View style={[portfolioStyles.card, portfolioStyles.cardFront, {
+        width: PORTFOLIO_CARD_W, height: PORTFOLIO_CARD_H,
+        bottom: 0, left: 0,
+        borderWidth: selectedCount > 0 ? 2.5 : 0,
+        borderColor: selectedCount > 0 ? '#1A1A1A' : 'transparent',
+      }]}>
+        {selectedCount > 0 && (
           <View style={portfolioStyles.checkBadge}>
-            <Text style={portfolioStyles.checkMark}>✓</Text>
+            <Text style={portfolioStyles.checkMark}>{selectedCount}</Text>
           </View>
         )}
+        <Text style={portfolioStyles.tapHint}>
+          {selectedCount > 0 ? `${selectedCount} selected — tap to change` : 'Tap to select portfolio items'}
+        </Text>
       </View>
     </TouchableOpacity>
   );
 }
 
 const portfolioStyles = StyleSheet.create({
-  container: {
-    position: 'relative',
-  },
-  card: {
-    position: 'absolute',
-    borderRadius: 16,
-  },
-  cardBack: {
-    backgroundColor: '#B8C2CE',
-  },
-  cardFront: {
-    backgroundColor: '#E4EAF2',
-  },
+  container: { position: 'relative' },
+  card: { position: 'absolute', borderRadius: 16 },
+  cardBack: { backgroundColor: '#B8C2CE' },
+  cardFront: { backgroundColor: '#E4EAF2', alignItems: 'center', justifyContent: 'center' },
   checkBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#1A1A1A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute', top: 10, right: 10,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center',
   },
   checkMark: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  tapHint: { fontSize: 13, color: '#888888', textAlign: 'center', paddingHorizontal: 16 },
+});
+
+// ── Portfolio Gallery Modal ────────────────────────────────────────────────────
+
+const COL_W = (SCREEN_WIDTH - 32 - 8) / 2; // two columns with 8px gap
+
+function PortfolioGalleryModal({
+  visible,
+  userId,
+  selectedIds,
+  onDone,
+  onClose,
+}: {
+  visible: boolean;
+  userId: string;
+  selectedIds: string[];
+  onDone: (ids: string[]) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set(selectedIds));
+
+  // Fetch gallery photos from Firestore when modal opens
+  useEffect(() => {
+    if (!visible) return;
+    setSelected(new Set(selectedIds));
+    setLoading(true);
+
+    firestore()
+      .collection(Collections.USERS)
+      .doc(userId)
+      .get()
+      .then(doc => {
+        const data = doc.data();
+        setPhotos(data?.gallery?.photos ?? []);
+      })
+      .catch(() => setPhotos([]))
+      .finally(() => setLoading(false));
+  }, [visible, userId]);
+
+  const toggle = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const leftCol = photos.filter((_, i) => i % 2 === 0);
+  const rightCol = photos.filter((_, i) => i % 2 === 1);
+
+  const renderPhoto = (photo: GalleryPhoto) => {
+    const isSelected = selected.has(photo.id);
+    return (
+      <TouchableOpacity
+        key={photo.id}
+        onPress={() => toggle(photo.id)}
+        activeOpacity={0.85}
+        style={[galleryStyles.photoWrapper, isSelected && galleryStyles.photoWrapperSelected]}
+      >
+        <Image source={{ uri: photo.url }} style={galleryStyles.photo} resizeMode="cover" />
+        {isSelected && (
+          <View style={galleryStyles.checkOverlay}>
+            <Text style={galleryStyles.checkIcon}>✓</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[galleryStyles.root, { paddingTop: insets.top }]}>
+        {/* Header */}
+        <View style={galleryStyles.header}>
+          <TouchableOpacity onPress={onClose} hitSlop={12}>
+            <Text style={galleryStyles.backText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={galleryStyles.title}>Portfolio</Text>
+          <TouchableOpacity onPress={() => onDone(Array.from(selected))} hitSlop={12}>
+            <Text style={galleryStyles.doneText}>Done ({selected.size})</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" style={{ marginTop: 60 }} />
+        ) : photos.length === 0 ? (
+          <View style={galleryStyles.emptyState}>
+            <Text style={galleryStyles.emptyText}>No portfolio photos yet.</Text>
+            <Text style={galleryStyles.emptySubText}>Add photos to your profile first.</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={galleryStyles.grid} showsVerticalScrollIndicator={false}>
+            <View style={galleryStyles.col}>{leftCol.map(renderPhoto)}</View>
+            <View style={galleryStyles.col}>{rightCol.map(renderPhoto)}</View>
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const galleryStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#2C2C2C' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 14,
+  },
+  backText: { fontSize: 16, color: '#FFFFFF' },
+  title: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
+  doneText: { fontSize: 16, color: '#E5674E', fontWeight: '600' },
+  grid: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingBottom: 32 },
+  col: { flex: 1, gap: 8 },
+  photoWrapper: { width: '100%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
+  photoWrapperSelected: { borderWidth: 3, borderColor: '#FFFFFF' },
+  photo: { width: '100%', height: '100%' },
+  checkOverlay: {
+    position: 'absolute', bottom: 8, right: 8,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center',
+  },
+  checkIcon: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  emptySubText: { color: '#888888', fontSize: 14 },
 });
 
 // ── ApplyScreen ───────────────────────────────────────────────────────────────
@@ -330,8 +429,10 @@ export function ApplyScreen({ post, visible, onClose }: ApplyScreenProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [portfolioSelected, setPortfolioSelected] = useState(false);
-  const [hasResume, setHasResume] = useState(false);
+  const [selectedPortfolioIds, setSelectedPortfolioIds] = useState<string[]>([]);
+  const [showGallery, setShowGallery] = useState(false);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [resumeFile, setResumeFile] = useState<{ name: string; uri: string } | null>(null);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -359,6 +460,22 @@ export function ApplyScreen({ post, visible, onClose }: ApplyScreenProps) {
     });
   }, [rangeEnd]);
 
+  async function pickResume() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword',
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setResumeFile({ name: asset.name, uri: asset.uri });
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open file picker. Please try again.');
+    }
+  }
+
   async function handleSubmit() {
     if (!post) return;
     if (!fullName.trim() || !email.trim() || !phone.trim()) {
@@ -374,6 +491,12 @@ export function ApplyScreen({ post, visible, onClose }: ApplyScreenProps) {
       await applyToPost(post.id, 'current-user-placeholder', {
         roleTitle,
         message: notes.trim(),
+        coverLetter: coverLetter.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        availabilityStart: rangeStart ?? undefined,
+        availabilityEnd: rangeEnd ?? undefined,
+        portfolioItemIds: selectedPortfolioIds,
       });
       Alert.alert('Application Submitted', `You've applied to "${post.filmName}". Good luck!`, [
         { text: 'OK', onPress: handleClose },
@@ -390,8 +513,10 @@ export function ApplyScreen({ post, visible, onClose }: ApplyScreenProps) {
     setFullName('');
     setEmail('');
     setPhone('');
-    setPortfolioSelected(false);
-    setHasResume(false);
+    setSelectedPortfolioIds([]);
+    setShowGallery(false);
+    setCoverLetter('');
+    setResumeFile(null);
     setRangeStart(null);
     setRangeEnd(null);
     setNotes('');
@@ -475,7 +600,7 @@ export function ApplyScreen({ post, visible, onClose }: ApplyScreenProps) {
             <View style={styles.overviewMetaRow}>
               <Text style={styles.overviewMetaIcon}>📍</Text>
               <Text style={styles.overviewMetaText}>
-                {post.shootingLocation.city}, {post.shootingLocation.state}
+                {post.postedBy.school || `${post.shootingLocation.city}, ${post.shootingLocation.state}`}
               </Text>
             </View>
             <View style={styles.overviewMetaRow}>
@@ -493,30 +618,60 @@ export function ApplyScreen({ post, visible, onClose }: ApplyScreenProps) {
 
           <View style={{ height: 16 }} />
           <PortfolioStack
-            selected={portfolioSelected}
-            onPress={() => setPortfolioSelected(v => !v)}
+            selectedCount={selectedPortfolioIds.length}
+            onPress={() => setShowGallery(true)}
+          />
+          <PortfolioGalleryModal
+            visible={showGallery}
+            userId="current-user-placeholder"
+            selectedIds={selectedPortfolioIds}
+            onDone={(ids) => { setSelectedPortfolioIds(ids); setShowGallery(false); }}
+            onClose={() => setShowGallery(false)}
           />
 
           {/* ── Cover Letter / Resume ── */}
-          <Text style={styles.sectionTitle}>Cover Letter/ Resume</Text>
+          <Text style={styles.sectionTitle}>Cover Letter/Resume</Text>
 
           <TouchableOpacity
-            style={[styles.uploadBox, hasResume && styles.uploadBoxDone]}
-            onPress={() => setHasResume(r => !r)}
+            style={[styles.uploadBox, resumeFile != null && styles.uploadBoxDone]}
+            onPress={pickResume}
             activeOpacity={0.8}
           >
-            {hasResume ? (
+            {resumeFile != null ? (
               <>
-                <Text style={styles.uploadIcon}>✓</Text>
-                <Text style={styles.uploadText}>File added</Text>
+                <Text style={styles.uploadIcon}>📄</Text>
+                <Text style={styles.uploadText} numberOfLines={1} ellipsizeMode="middle">
+                  {resumeFile.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setResumeFile(null)}
+                  hitSlop={12}
+                  style={styles.removeFileBtn}
+                >
+                  <Text style={styles.removeFileText}>Remove</Text>
+                </TouchableOpacity>
               </>
             ) : (
               <>
                 <Text style={styles.uploadIcon}>⊕</Text>
                 <Text style={styles.uploadText}>Add files here</Text>
+                <Text style={styles.uploadSubText}>PDF or Word doc</Text>
               </>
             )}
           </TouchableOpacity>
+
+          <View style={[styles.notesBox, { marginTop: 12 }]}>
+            <TextInput
+              style={styles.notesInput}
+              value={coverLetter}
+              onChangeText={t => setCoverLetter(t.slice(0, 1000))}
+              placeholder="Tell us why you're a great fit for this role..."
+              placeholderTextColor="#AAAAAA"
+              multiline
+              textAlignVertical="top"
+            />
+            <Text style={styles.notesCounter}>{coverLetter.length}/1000 characters</Text>
+          </View>
 
           {/* ── Availability ── */}
           <Text style={styles.sectionTitle}>Availability</Text>
@@ -683,6 +838,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FFFFFF',
     fontWeight: '500',
+    maxWidth: '80%',
+    textAlign: 'center',
+  },
+  uploadSubText: {
+    fontSize: 12,
+    color: '#999999',
+    marginTop: 2,
+  },
+  removeFileBtn: {
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#888888',
+  },
+  removeFileText: {
+    fontSize: 12,
+    color: '#CCCCCC',
   },
 
   // Notes
@@ -704,7 +878,7 @@ const styles = StyleSheet.create({
 
   // Submit
   submitBtn: {
-    backgroundColor: CARD_BG,
+    backgroundColor: '#E5674E',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -716,6 +890,6 @@ const styles = StyleSheet.create({
   submitText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: '#FFFFFF',
   },
 });

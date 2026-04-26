@@ -12,10 +12,31 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createPost } from '../services/posts';
 import { Role, RoleType } from '../types/post';
+
+// ── Pill icons (white, to sit on dark #1A1A1A pill background) ────────────────
+
+const CALENDAR_PILL_SVG = `<svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0.7" y="1.7" width="12.6" height="11.6" rx="1.8" stroke="white" stroke-width="1.3"/>
+  <line x1="4" y1="0.5" x2="4" y2="3.2" stroke="white" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="10" y1="0.5" x2="10" y2="3.2" stroke="white" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="1" y1="5.8" x2="13" y2="5.8" stroke="white" stroke-width="1.3" stroke-linecap="round"/>
+</svg>`;
+
+const PIN_PILL_SVG = `<svg viewBox="0 0 12 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M6 1C3.79 1 2 2.79 2 5C2 8.25 6 15 6 15C6 15 10 8.25 10 5C10 2.79 8.21 1 6 1Z" stroke="white" stroke-width="1.4" stroke-linejoin="round"/>
+  <circle cx="6" cy="5" r="1.5" stroke="white" stroke-width="1.2"/>
+</svg>`;
+
+const HASH_PILL_SVG = `<svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <line x1="4" y1="1" x2="3" y2="13" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="10" y1="1" x2="9" y2="13" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="1.5" y1="5" x2="12.5" y2="5" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="1.5" y1="9" x2="12.5" y2="9" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+</svg>`;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -46,13 +67,31 @@ function formatDateKey(key: string): string {
   return `${CAL_MONTH_SHORT[m - 1]} ${d}, ${y}`;
 }
 
-// ── Trash icon ────────────────────────────────────────────────────────────────
+// ── Role circle toggle ────────────────────────────────────────────────────────
 
-const TrashIcon = ({ size = 18, color = '#BBBBBB' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-    <Path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-  </Svg>
+const RoleCircle = ({ onRemove, canRemove }: { onRemove: () => void; canRemove: boolean }) => (
+  <TouchableOpacity
+    onPress={canRemove ? onRemove : undefined}
+    hitSlop={10}
+    activeOpacity={0.7}
+    style={roleCircleStyles.outer}
+  >
+    {canRemove && <View style={roleCircleStyles.inner} />}
+  </TouchableOpacity>
 );
+
+const roleCircleStyles = StyleSheet.create({
+  outer: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 1.5, borderColor: '#BBBBBB',
+    alignItems: 'center', justifyContent: 'center',
+    marginLeft: 12,
+  },
+  inner: {
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: '#1A1A1A',
+  },
+});
 
 // ── Date picker calendar ──────────────────────────────────────────────────────
 
@@ -322,21 +361,21 @@ export const PostingScreen: React.FC<Props> = ({
                     onPress={() => setShowCalendarModal(true)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.pillIcon}>📅</Text>
+                    <SvgXml xml={CALENDAR_PILL_SVG} width={13} height={13} />
                     <Text style={[styles.pillText, !selectedDateKey && styles.pillPlaceholder]}>
                       {selectedDateKey ? formatDateKey(selectedDateKey) : 'Set date & time'}
                     </Text>
                   </TouchableOpacity>
-                  <View style={styles.pill}>
-                    <Text style={styles.pillIcon}>📍</Text>
+                  <TouchableOpacity style={styles.pill} activeOpacity={1}>
+                    <SvgXml xml={PIN_PILL_SVG} width={11} height={14} />
                     <TextInput
-                      style={styles.pillText}
+                      style={styles.pillLocationInput}
                       placeholder="Location"
-                      placeholderTextColor="#AAAAAA"
+                      placeholderTextColor="#888888"
                       value={location}
                       onChangeText={setLocation}
                     />
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
                 <TextInput
@@ -349,26 +388,34 @@ export const PostingScreen: React.FC<Props> = ({
                   textAlignVertical="top"
                 />
 
-                <View style={styles.tagRow}>
-                  {tags.map(tag => (
-                    <TouchableOpacity
-                      key={tag}
-                      style={styles.tagPill}
-                      onPress={() => removeTag(tag)}
-                    >
-                      <Text style={styles.tagPillText}>{tag} ×</Text>
-                    </TouchableOpacity>
-                  ))}
+                {/* Existing tag pills */}
+                {tags.length > 0 && (
+                  <View style={styles.tagRow}>
+                    {tags.map(tag => (
+                      <TouchableOpacity
+                        key={tag}
+                        style={styles.tagPill}
+                        onPress={() => removeTag(tag)}
+                      >
+                        <Text style={styles.tagPillText}>#{tag} ×</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {/* Tag input styled as pill */}
+                <TouchableOpacity style={styles.tagInputPill} activeOpacity={1} onPress={() => {}}>
+                  <SvgXml xml={HASH_PILL_SVG} width={12} height={12} />
                   <TextInput
                     style={styles.tagInput}
-                    placeholder="+ Add tags"
+                    placeholder="Add tags"
                     placeholderTextColor="#888888"
                     value={tagInput}
                     onChangeText={setTagInput}
                     onSubmitEditing={addTag}
                     returnKeyType="done"
                   />
-                </View>
+                </TouchableOpacity>
               </View>
 
               {/* ── Available roles card ── */}
@@ -392,13 +439,10 @@ export const PostingScreen: React.FC<Props> = ({
                         onChangeText={v => updateRole(index, 'roleDescription', v)}
                       />
                     </View>
-                    <TouchableOpacity
-                      style={styles.roleDeleteBtn}
-                      onPress={() => removeRole(index)}
-                      hitSlop={8}
-                    >
-                      <TrashIcon size={18} color={roles.length > 1 ? '#BBBBBB' : '#E0E0E0'} />
-                    </TouchableOpacity>
+                    <RoleCircle
+                      canRemove={roles.length > 1}
+                      onRemove={() => removeRole(index)}
+                    />
                   </View>
                 ))}
                 <TouchableOpacity style={styles.addRoleBtn} onPress={addRole}>
@@ -484,29 +528,43 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 16, gap: 12 },
   card: { backgroundColor: CARD_BG, borderRadius: 16, padding: 16, gap: 12 },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
-  titleInput: { fontSize: 20, fontWeight: '600', color: '#1A1A1A', padding: 0 },
+  titleInput: { fontSize: 22, fontWeight: '700', color: '#1A1A1A', padding: 0, marginBottom: 4 },
   pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: PILL_BG, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 6, gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7, gap: 6,
   },
-  pillIcon: { fontSize: 12 },
-  pillText: { color: '#FFFFFF', fontSize: 13, minWidth: 80, padding: 0 },
-  pillPlaceholder: { color: '#AAAAAA' },
+  pillText: { color: '#FFFFFF', fontSize: 13, padding: 0 },
+  pillPlaceholder: { color: '#888888' },
+  /** Location pill uses a TextInput — needs tighter padding control */
+  pillLocationInput: {
+    color: '#FFFFFF', fontSize: 13,
+    padding: 0, margin: 0,
+    minWidth: 0, flexShrink: 1,
+  },
   descriptionInput: {
     backgroundColor: '#F5F5F5', borderRadius: 10,
-    padding: 12, fontSize: 14, color: '#1A1A1A', minHeight: 80,
+    padding: 12, fontSize: 14, color: '#1A1A1A', minHeight: 110,
   },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  tagPill: { backgroundColor: '#E8E8E8', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  tagPillText: { fontSize: 13, color: '#333333' },
-  tagInput: { fontSize: 13, color: '#333333', minWidth: 80, padding: 0 },
-  roleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  roleTextGroup: { flex: 1, gap: 2 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  tagPill: { backgroundColor: '#1A1A1A', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  tagPillText: { fontSize: 13, color: '#FFFFFF' },
+  tagInputPill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#1A1A1A', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 7,
+    alignSelf: 'flex-start', gap: 6,
+  },
+  tagInput: { fontSize: 13, color: '#FFFFFF', padding: 0, minWidth: 60 },
+  roleRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0',
+  },
+  roleTextGroup: { flex: 1, gap: 3 },
   roleNameInput: { fontSize: 14, fontWeight: '500', color: '#1A1A1A', padding: 0 },
   roleDescInput: { fontSize: 12, color: '#AAAAAA', padding: 0 },
-  roleDeleteBtn: { marginLeft: 12, padding: 2 },
   addRoleBtn: { alignSelf: 'flex-start' },
   addRoleBtnText: { fontSize: 14, color: '#888888' },
   requirementRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },

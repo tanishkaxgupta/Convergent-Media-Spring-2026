@@ -13,8 +13,18 @@ import {
   TextInput,
   View,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SvgXml } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePostSearch } from '../hooks/use-post-search';
+import { Post, RoleType, ALL_ROLE_TYPES } from '../types/post';
+import { UserProfile } from '../types/user';
+import { MOCK_PEOPLE } from '../data/mockPeople';
+import { ApplyScreen } from './ApplyScreen';
+import { firestore, Collections } from '../services/firebase';
+import { toggleSavePost } from '../services/posts';
+import { ProfileView } from './ProfileScreen';
 
 const SEARCH_ICON = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
   <circle cx="8" cy="8" r="5.5" stroke="#888888" stroke-width="1.6"/>
@@ -34,19 +44,51 @@ const CHEVRON_DOWN = `<svg width="11" height="7" viewBox="0 0 11 7" fill="none" 
   <path d="M1 1L5.5 6L10 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
+// ── Post detail meta icons (muted, on dark background) ────────────────────────
+
+const META_PIN_SVG = `<svg viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M7 1C4.239 1 2 3.239 2 6C2 9.75 7 17 7 17C7 17 12 9.75 12 6C12 3.239 9.761 1 7 1Z" stroke="#888888" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="7" cy="6" r="2" stroke="#888888" stroke-width="1.4"/>
+</svg>`;
+
+const META_CAL_SVG = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="2.5" width="14" height="12.5" rx="2" stroke="#888888" stroke-width="1.4"/>
+  <line x1="4.5" y1="1" x2="4.5" y2="4.5" stroke="#888888" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="11.5" y1="1" x2="11.5" y2="4.5" stroke="#888888" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="1" y1="7" x2="15" y2="7" stroke="#888888" stroke-width="1.4" stroke-linecap="round"/>
+</svg>`;
+
+const META_CLOCK_SVG = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="8" cy="8" r="6.5" stroke="#888888" stroke-width="1.4"/>
+  <polyline points="8,4.5 8,8 10.5,10" stroke="#888888" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // listContent paddingHorizontal (16) + card padding (16) on each side
 const CARD_IMAGE_WIDTH = SCREEN_WIDTH - 64;
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// ── Logo asset ────────────────────────────────────────────────────────────────
+const CUE_LOGO = require('../assets/images/Logo.png');
 
-import { usePostSearch } from '../hooks/use-post-search';
-import { Post, RoleType, ALL_ROLE_TYPES } from '../types/post';
-import { UserProfile } from '../types/user';
-import { MOCK_PEOPLE } from '../data/mockPeople';
-import { ApplyScreen } from './ApplyScreen';
-import { firestore, Collections } from '../services/firebase';
-import { ProfileView } from './ProfileScreen';
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatPostedDate(createdAt: any): string {
+  if (!createdAt) return '';
+  let date: Date;
+  if (typeof createdAt?.toDate === 'function') {
+    date = createdAt.toDate();
+  } else if (typeof createdAt === 'string') {
+    date = new Date(createdAt);
+  } else if (createdAt instanceof Date) {
+    date = createdAt;
+  } else {
+    return '';
+  }
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `Posted ${months[date.getMonth()]} ${date.getDate()}`;
+}
+
+const CURRENT_USER_ID = 'user_001'; // swap for real auth uid when ready
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -54,8 +96,9 @@ const BG = '#2C2C2C';
 const CARD_BG = '#FFFFFF';
 const SEARCH_BG = '#F5F5F5';
 const APPLY_BTN = '#1A1A1A';
+const ACCENT = '#E5674E';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
 function formatDateRange(startISO: string, endISO: string): string {
   const start = new Date(startISO);
@@ -95,118 +138,190 @@ const SuggestionRow = ({
   </Pressable>
 );
 
-/** Full-screen modal showing all details for a post */
+// ── Role type label ───────────────────────────────────────────────────────────
+const ROLE_TYPE_LABEL: Record<string, string> = {
+  actor: 'Actor', tech: 'Tech', crew: 'Crew',
+  dancer: 'Dancer', musician: 'Musician', other: 'Other',
+};
+
+// ── PostDetailModal ───────────────────────────────────────────────────────────
 const PostDetailModal = ({
   post,
   posterHeadshotUrl,
+  savedPostIds,
   onClose,
   onApply,
+  onSaveToggled,
 }: {
   post: Post | null;
   posterHeadshotUrl?: string;
+  savedPostIds: string[];
   onClose: () => void;
   onApply: (post: Post) => void;
+  onSaveToggled?: (postId: string, nowSaved: boolean) => void;
 }) => {
+  const [savingRole, setSavingRole] = useState<number | null>(null);
+
   if (!post) return null;
 
-  const dateRange = formatDateRange(
-    post.shootingTimeline.startDate,
-    post.shootingTimeline.endDate,
-  );
-  const deadline = new Date(post.recruitmentDeadline);
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const deadlineStr = `${months[deadline.getMonth()]} ${deadline.getDate()}, ${deadline.getFullYear()}`;
+  const start    = new Date(post.shootingTimeline.startDate);
+  const end      = new Date(post.shootingTimeline.endDate);
+  const deadline = new Date(post.recruitmentDeadline);
+  const filmingStr  = `Filming ${months[start.getMonth()]} ${start.getDate()} – ${months[end.getMonth()]} ${end.getDate()}`;
+  const deadlineStr = `Apply by ${months[deadline.getMonth()]} ${deadline.getDate()}, ${deadline.getFullYear()}`;
+  const handle = '@' + post.postedBy.name.toLowerCase().replace(/\s+/g, '');
+  const posterRole = post.director.includes(post.postedBy.name) ? 'Director' : 'Producer';
+  const isSaved = savedPostIds.includes(post.id);
+
+  const handleSave = async (roleIdx: number) => {
+    setSavingRole(roleIdx);
+    try {
+      await toggleSavePost(CURRENT_USER_ID, post.id, isSaved);
+      onSaveToggled?.(post.id, !isSaved);
+    } catch {
+      Alert.alert('Error', 'Could not save post. Please try again.');
+    } finally {
+      setSavingRole(null);
+    }
+  };
+
+  const leftPhotos  = post.media.images.filter((_, i) => i % 2 === 0);
+  const rightPhotos = post.media.images.filter((_, i) => i % 2 === 1);
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={styles.detailContainer}>
-        {/* Header */}
-        <View style={styles.detailHeader}>
-          <Pressable onPress={onClose} hitSlop={12} style={styles.detailBackBtn}>
-            <Text style={styles.detailBackText}>← Back</Text>
+      <View style={detailStyles.root}>
+        {/* ── Header ── */}
+        <View style={detailStyles.header}>
+          <Pressable onPress={onClose} hitSlop={12} style={detailStyles.backBtn}>
+            <Text style={detailStyles.backText}>{'←'}</Text>
           </Pressable>
+          <Image source={CUE_LOGO} style={detailStyles.logo} resizeMode="contain" />
+          <View style={{ width: 40 }} />
         </View>
 
         <ScrollView
-          style={styles.detailScroll}
-          contentContainerStyle={styles.detailScrollContent}
+          style={detailStyles.scroll}
+          contentContainerStyle={detailStyles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Poster info */}
-          <View style={styles.detailPosterRow}>
-            {posterHeadshotUrl ? (
-              <Image source={{ uri: posterHeadshotUrl }} style={styles.detailAvatar} resizeMode="cover" />
-            ) : (
-              <View style={styles.detailAvatar} />
-            )}
-            <View>
-              <Text style={styles.detailPosterName}>{post.postedBy.name}</Text>
-              {post.postedBy.school ? (
-                <Text style={styles.detailPosterSchool}>{post.postedBy.school}</Text>
-              ) : null}
+          {/* ── Poster card ── */}
+          <View style={detailStyles.posterCard}>
+            {posterHeadshotUrl
+              ? <Image source={{ uri: posterHeadshotUrl }} style={detailStyles.avatar} resizeMode="cover" />
+              : <View style={detailStyles.avatar} />
+            }
+            <View style={detailStyles.posterInfo}>
+              <Text style={detailStyles.posterName}>{post.postedBy.name}</Text>
+              <Text style={detailStyles.posterHandle}>{handle}</Text>
+              <Text style={detailStyles.posterRole}>
+                {posterRole}{post.postedBy.school ? ` @ ${post.postedBy.school}` : ''}
+              </Text>
             </View>
           </View>
 
-          {/* Film name */}
-          <Text style={styles.detailFilmName}>{post.filmName}</Text>
-          {post.director.length > 0 && (
-            <Text style={styles.detailDirector}>
-              directed by {post.director.join(', ')}
-            </Text>
-          )}
-
-          {/* Meta row */}
-          <View style={styles.detailMetaRow}>
-            <Text style={styles.detailMetaItem}>
-              {post.shootingLocation.city}, {post.shootingLocation.state}
-            </Text>
-            <Text style={styles.detailMetaItem}>{dateRange}</Text>
-            <Text style={styles.detailMetaItem}>Apply by {deadlineStr}</Text>
+          {/* ── Film title + bullets card ── */}
+          <View style={detailStyles.contentCard}>
+            <Text style={detailStyles.filmTitle}>{post.filmName}</Text>
+            {post.description ? (
+              <Text style={detailStyles.shortDesc}>{post.description}</Text>
+            ) : null}
+            {post.roles.length > 0 && (
+              <View style={detailStyles.bulletList}>
+                {post.roles.map((r, i) => (
+                  <Text key={i} style={detailStyles.bullet}>{'• '}{r.description}</Text>
+                ))}
+              </View>
+            )}
+            <Text style={detailStyles.moreInfo}>more info in application</Text>
           </View>
 
-          {post.shootingLocation.details ? (
-            <Text style={styles.detailLocationDetails}>{post.shootingLocation.details}</Text>
+          {/* ── About the project card ── */}
+          {post.description ? (
+            <View style={detailStyles.contentCard}>
+              <Text style={detailStyles.aboutLabel}>About the project</Text>
+              <Text style={detailStyles.aboutText}>{post.description}</Text>
+            </View>
           ) : null}
 
-          {/* Roles */}
-          <Text style={styles.detailSectionTitle}>Roles</Text>
+          {/* ── Meta card ── */}
+          <View style={detailStyles.metaCard}>
+            <View style={detailStyles.metaRow}>
+              <SvgXml xml={META_PIN_SVG} width={14} height={16} />
+              <Text style={detailStyles.metaText}>{post.shootingLocation.city}, {post.shootingLocation.state}</Text>
+            </View>
+            <View style={detailStyles.metaRow}>
+              <SvgXml xml={META_CAL_SVG} width={15} height={15} />
+              <Text style={detailStyles.metaText}>{filmingStr}</Text>
+            </View>
+            <View style={detailStyles.metaRow}>
+              <SvgXml xml={META_CLOCK_SVG} width={15} height={15} />
+              <Text style={detailStyles.metaText}>{deadlineStr}</Text>
+            </View>
+          </View>
+
+          {/* ── Roles ── */}
+          <Text style={detailStyles.sectionTitle}>Roles</Text>
           {post.roles.map((role, i) => (
-            <View key={i} style={styles.detailRoleCard}>
-              <Text style={styles.detailRoleTitle}>{role.title}</Text>
-              <Text style={styles.detailRoleType}>{role.type}</Text>
-              <Text style={styles.detailRoleDesc}>{role.description}</Text>
+            <View key={i} style={detailStyles.roleCard}>
+              <Text style={detailStyles.roleTitle}>{role.title}</Text>
+              <View style={detailStyles.roleBadgeRow}>
+                <View style={detailStyles.roleBadge}>
+                  <Text style={detailStyles.roleBadgeText}>{ROLE_TYPE_LABEL[role.type] ?? role.type}</Text>
+                </View>
+                <View style={detailStyles.roleBadge}>
+                  <View style={detailStyles.dollarCircle}>
+                    <Text style={detailStyles.dollarSign}>$</Text>
+                  </View>
+                  <Text style={detailStyles.roleBadgeText}>Unpaid</Text>
+                </View>
+              </View>
+              <Text style={detailStyles.roleDesc}>{role.description}</Text>
+              <View style={detailStyles.roleButtonRow}>
+                <TouchableOpacity
+                  style={[detailStyles.saveBtn, isSaved && detailStyles.saveBtnActive]}
+                  onPress={() => handleSave(i)}
+                  activeOpacity={0.8}
+                >
+                  {savingRole === i
+                    ? <ActivityIndicator size="small" color="#333333" />
+                    : <Text style={[detailStyles.saveBtnText, isSaved && detailStyles.saveBtnTextActive]}>
+                        {isSaved ? 'Saved ✓' : 'Save'}
+                      </Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={detailStyles.applyNowBtn}
+                  onPress={() => { onApply(post); onClose(); }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={detailStyles.applyNowText}>Apply Now</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
 
-          {/* Images */}
+          {/* ── Photos grid ── */}
           {post.media.images.length > 0 && (
             <>
-              <Text style={styles.detailSectionTitle}>Photos</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.detailImageScroll}
-                contentContainerStyle={styles.imageScrollContent}
-              >
-                {post.media.images.map((img) => (
-                  <Image
-                    key={img.id}
-                    source={{ uri: img.url }}
-                    style={styles.detailImage}
-                    resizeMode="cover"
-                  />
-                ))}
-              </ScrollView>
+              <Text style={detailStyles.sectionTitle}>Photos</Text>
+              <View style={detailStyles.photoGrid}>
+                <View style={detailStyles.photoCol}>
+                  {leftPhotos.map(img => (
+                    <Image key={img.id} source={{ uri: img.url }} style={detailStyles.photoItem} resizeMode="cover" />
+                  ))}
+                </View>
+                <View style={detailStyles.photoCol}>
+                  {rightPhotos.map(img => (
+                    <Image key={img.id} source={{ uri: img.url }} style={detailStyles.photoItem} resizeMode="cover" />
+                  ))}
+                </View>
+              </View>
             </>
           )}
 
-          {/* Apply button */}
-          <Pressable
-            style={styles.applyButton}
-            onPress={() => { onApply(post); onClose(); }}
-          >
-            <Text style={styles.applyButtonText}>Apply</Text>
-          </Pressable>
+          <View style={{ height: 40 }} />
         </ScrollView>
       </View>
     </Modal>
@@ -225,25 +340,40 @@ const PostCard = ({
   onApply: (post: Post) => void;
   onPress: (post: Post) => void;
 }) => {
-  const rawDescription = post.roles[0]?.description ?? `Looking for crew for "${post.filmName}"`;
-  const description = getFirstParagraph(rawDescription);
+  const description = post.description
+    ? getFirstParagraph(post.description)
+    : `We're working on "${post.filmName}" and need some help!`;
 
   const hasImages = post.media.images.length > 0;
+  const postedLabel = formatPostedDate(post.createdAt);
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={() => onPress(post)} style={styles.card}>
-      {/* Header: avatar + poster name */}
+      {/* Header: avatar + poster name + date */}
       <View style={styles.cardHeader}>
         {posterHeadshotUrl ? (
           <Image source={{ uri: posterHeadshotUrl }} style={styles.avatar} resizeMode="cover" />
         ) : (
           <View style={styles.avatar} />
         )}
-        <Text style={styles.posterName}>{post.postedBy.name}</Text>
+        <View style={styles.cardHeaderText}>
+          <Text style={styles.posterName}>{post.postedBy.name}</Text>
+          {postedLabel ? <Text style={styles.postedDate}>{postedLabel}</Text> : null}
+        </View>
       </View>
 
       {/* Main description */}
       <Text style={styles.cardDescription}>{description}</Text>
+
+      {/* Roles bullet list */}
+      {post.roles.length > 0 && (
+        <View style={styles.rolesSection}>
+          <Text style={styles.lookingForLabel}>looking for:</Text>
+          {post.roles.map((role, i) => (
+            <Text key={i} style={styles.bulletItem}>{'• '}{role.title}</Text>
+          ))}
+        </View>
+      )}
 
       {/* Photos */}
       {hasImages && (
@@ -283,6 +413,12 @@ const PostCard = ({
   );
 };
 
+function availabilityDotColor(availability: string): string {
+  if (availability === 'available') return '#4CAF50';
+  if (availability === 'open to offers') return '#FF9800';
+  return '#E5674E'; // unavailable → red
+}
+
 /** Person card matching the Figma design */
 const PeopleCard = ({
   person,
@@ -292,17 +428,21 @@ const PeopleCard = ({
   onPress: (person: UserProfile) => void;
 }) => {
   const role = person.roleInfo.specialties[0] ?? person.roleInfo.primaryRole;
-  const location = person.basicInfo.school ?? `${person.basicInfo.location.city}, ${person.basicInfo.location.state}`;
+  const school = person.basicInfo.school ?? `${person.basicInfo.location.city}, ${person.basicInfo.location.state}`;
+  const dotColor = availabilityDotColor(person.roleInfo.availability);
   return (
     <TouchableOpacity activeOpacity={0.8} onPress={() => onPress(person)} style={styles.peopleCard}>
-      {person.basicInfo.headshotUrl ? (
-        <Image source={{ uri: person.basicInfo.headshotUrl }} style={styles.peopleAvatar} />
-      ) : (
-        <View style={styles.peopleAvatar} />
-      )}
+      <View style={styles.peopleAvatarWrapper}>
+        {person.basicInfo.headshotUrl ? (
+          <Image source={{ uri: person.basicInfo.headshotUrl }} style={styles.peopleAvatar} />
+        ) : (
+          <View style={styles.peopleAvatar} />
+        )}
+        <View style={[styles.availabilityDot, { backgroundColor: dotColor }]} />
+      </View>
       <View style={styles.peopleCardText}>
         <Text style={styles.peopleCardName}>{person.basicInfo.name}</Text>
-        <Text style={styles.peopleCardSub}>{role} @ {location}</Text>
+        <Text style={styles.peopleCardSub}>{role} @ {school}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -531,12 +671,15 @@ export const SearchScreen = () => {
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
   const [applyPost, setApplyPost] = useState<Post | null>(null);
   const [firestoreUsers, setFirestoreUsers] = useState<UserProfile[]>([]);
+  const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    // @ts-ignore – process.env is available at runtime in Expo/Metro
+    // @ts-ignore
     const isConfigured = !!(process.env.EXPO_PUBLIC_FIREBASE_API_KEY && process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID);
     if (!isConfigured) return;
+
+    // Load all users for people tab
     firestore()
       .collection(Collections.USERS)
       .get()
@@ -545,6 +688,16 @@ export const SearchScreen = () => {
         if (users.length > 0) setFirestoreUsers(users);
       })
       .catch(() => {});
+
+    // Listen to current user's saved posts
+    const unsub = firestore()
+      .collection(Collections.USERS)
+      .doc(CURRENT_USER_ID)
+      .onSnapshot(snap => {
+        const raw = snap.data()?.savedPostId;
+        if (Array.isArray(raw)) setSavedPostIds(raw.filter((x): x is string => typeof x === 'string'));
+      }, () => {});
+    return unsub;
   }, []);
 
   const {
@@ -564,9 +717,9 @@ export const SearchScreen = () => {
     clearFilters,
   } = usePostSearch();
 
-  // Default to UT Austin on first load
+  // Default to University of Texas at Austin on first load
   useEffect(() => {
-    setSchool('UT Austin');
+    setSchool('University of Texas at Austin');
   }, []);
 
   // Derive autocomplete suggestions from current results
@@ -667,8 +820,15 @@ export const SearchScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* ── Logo (hidden while keyboard is open) ── */}
+      {!isFocused && (
+        <View style={[styles.logoRow, { marginTop: top + 8 }]}>
+          <Image source={CUE_LOGO} style={styles.logoImage} resizeMode="contain" />
+        </View>
+      )}
+
       {/* ── Search bar ── */}
-      <View style={[styles.searchBarWrapper, { paddingTop: top + 16 }]}>
+      <View style={[styles.searchBarWrapper, { paddingTop: isFocused ? top + 16 : 8 }]}>
         <View style={styles.searchBar}>
           <SvgXml xml={SEARCH_ICON} width={18} height={18} style={styles.searchIcon} />
           <TextInput
@@ -809,8 +969,12 @@ export const SearchScreen = () => {
       <PostDetailModal
         post={selectedPost}
         posterHeadshotUrl={selectedPost ? getPosterHeadshotUrl(selectedPost) : undefined}
+        savedPostIds={savedPostIds}
         onClose={() => setSelectedPost(null)}
         onApply={handleApply}
+        onSaveToggled={(postId, nowSaved) =>
+          setSavedPostIds(prev => nowSaved ? [...prev, postId] : prev.filter(id => id !== postId))
+        }
       />
 
       {/* ── Apply screen ── */}
@@ -849,6 +1013,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG,
+  },
+
+  // Logo
+  logoRow: {
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  logoImage: {
+    width: 80,
+    height: 44,
   },
 
   // Search bar
@@ -1035,6 +1209,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 10,
   },
+  cardHeaderText: {
+    flex: 1,
+    gap: 2,
+  },
   avatar: {
     width: 40,
     height: 40,
@@ -1046,16 +1224,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000000',
   },
+  postedDate: {
+    fontSize: 12,
+    color: '#888888',
+  },
   cardDescription: {
     fontSize: 14,
     color: '#222222',
-    marginBottom: 6,
+    marginBottom: 8,
     lineHeight: 20,
   },
-  bulletItem: {
-    fontSize: 14,
+  rolesSection: {
+    marginBottom: 8,
+    gap: 2,
+  },
+  lookingForLabel: {
+    fontSize: 13,
     color: '#444444',
-    lineHeight: 22,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  bulletItem: {
+    fontSize: 13,
+    color: '#555555',
+    lineHeight: 20,
+    paddingLeft: 4,
   },
 
   // Post images
@@ -1109,12 +1302,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
+  peopleAvatarWrapper: {
+    position: 'relative',
+    width: 48,
+    height: 48,
+    flexShrink: 0,
+  },
   peopleAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
     backgroundColor: '#8A95A3',
-    flexShrink: 0,
+  },
+  availabilityDot: {
+    position: 'absolute',
+    bottom: 1,
+    right: 1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   peopleCardText: {
     flex: 1,
@@ -1152,121 +1360,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Post detail screen
-  detailContainer: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  detailHeader: {
-    paddingTop: 56,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#3D3D3D',
-  },
-  detailBackBtn: {
-    alignSelf: 'flex-start',
-  },
-  detailBackText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  detailScroll: {
-    flex: 1,
-  },
-  detailScrollContent: {
-    padding: 20,
-    paddingBottom: 48,
-  },
-  detailPosterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  detailAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#C0C4CC',
-  },
-  detailPosterName: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  detailPosterSchool: {
-    color: '#AAAAAA',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  detailFilmName: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  detailDirector: {
-    color: '#AAAAAA',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  detailMetaRow: {
-    gap: 6,
-    marginBottom: 4,
-  },
-  detailMetaItem: {
-    color: '#CCCCCC',
-    fontSize: 14,
-  },
-  detailLocationDetails: {
-    color: '#888888',
-    fontSize: 13,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  detailSectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  detailRoleCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
-  detailRoleTitle: {
-    color: '#111111',
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  detailRoleType: {
-    color: '#888888',
-    fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  detailRoleDesc: {
-    color: '#333333',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  detailImageScroll: {
-    marginHorizontal: -20,
-  },
-  detailImage: {
-    width: 260,
-    height: 180,
-    borderRadius: 10,
-    backgroundColor: '#D8E4F0',
-  },
+  // (detail modal now uses detailStyles below)
 
   // Profile placeholder
   profilePlaceholder: {
@@ -1394,4 +1488,120 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+});
+
+// ── Post Detail Styles ────────────────────────────────────────────────────────
+
+const DETAIL_PHOTO_W = (SCREEN_WIDTH - 32 - 8) / 2;
+
+const detailStyles = StyleSheet.create({
+  root:   { flex: 1, backgroundColor: '#1C1C1E' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12,
+    backgroundColor: '#1C1C1E',
+  },
+  backBtn:  { padding: 4 },
+  backText: { color: '#FFFFFF', fontSize: 22, fontWeight: '300' },
+  logo:     { width: 60, height: 30 },
+
+  scroll:        { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 48 },
+
+  // ── Poster card ─────────────────────────────────────────────────────────────
+  posterCard: {
+    backgroundColor: '#2C2C2E', borderRadius: 14,
+    padding: 14, flexDirection: 'row', alignItems: 'center',
+    gap: 12, marginBottom: 20,
+  },
+  avatar:       { width: 50, height: 50, borderRadius: 25, backgroundColor: '#555558' },
+  posterInfo:   { flex: 1, gap: 3 },
+  posterName:   { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  posterHandle: { color: '#8E8E93', fontSize: 13 },
+  posterRole:   { color: '#8E8E93', fontSize: 13 },
+
+  // ── Generic content card ────────────────────────────────────────────────────
+  contentCard: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+  },
+
+  // ── Film title ───────────────────────────────────────────────────────────────
+  filmTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '800', marginBottom: 12, lineHeight: 30 },
+
+  // ── Short description + bullets ──────────────────────────────────────────────
+  shortDesc:  { color: '#C7C7CC', fontSize: 14, lineHeight: 21, marginBottom: 10 },
+  bulletList: { gap: 5, marginBottom: 6 },
+  bullet:     { color: '#C7C7CC', fontSize: 14, lineHeight: 21 },
+  moreInfo:   { color: '#636366', fontSize: 13, fontStyle: 'italic', marginTop: 6 },
+
+  // ── About section ────────────────────────────────────────────────────────────
+  sectionTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', marginTop: 4, marginBottom: 10 },
+  aboutLabel:   { color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  aboutText:    { color: '#C7C7CC', fontSize: 14, lineHeight: 22 },
+
+  // ── Meta card (location / filming / deadline) ────────────────────────────────
+  metaCard: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
+    marginBottom: 12,
+  },
+  metaRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  metaText:  { color: '#8E8E93', fontSize: 13 },
+
+  // ── Role cards — dark grey matching Figma ────────────────────────────────────
+  roleCard: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+  },
+  roleTitle:    { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  roleBadgeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  roleBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#3A3A3C',
+    borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  roleBadgeText: { color: '#AEAEB2', fontSize: 12, fontWeight: '500' },
+
+  // Dollar circle inside "Unpaid" badge
+  dollarCircle: {
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#636366',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  dollarSign: { color: '#FFFFFF', fontSize: 10, fontWeight: '700', lineHeight: 14 },
+
+  roleDesc: { color: '#8E8E93', fontSize: 13, lineHeight: 20, marginBottom: 16 },
+
+  // ── Save / Apply Now buttons ─────────────────────────────────────────────────
+  roleButtonRow: { flexDirection: 'row', gap: 10 },
+  saveBtn: {
+    flex: 1,
+    borderWidth: 1.5, borderColor: '#555558',
+    borderRadius: 10, paddingVertical: 13,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  saveBtnActive:     { borderColor: '#FFFFFF', backgroundColor: '#3A3A3C' },
+  saveBtnText:       { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  saveBtnTextActive: { color: '#FFFFFF' },
+  applyNowBtn: {
+    flex: 1,
+    backgroundColor: ACCENT,
+    borderRadius: 10, paddingVertical: 13,
+    alignItems: 'center',
+  },
+  applyNowText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+
+  // ── Photos ───────────────────────────────────────────────────────────────────
+  photoGrid: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  photoCol:  { flex: 1, gap: 8 },
+  photoItem: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: '#3A3A3C' },
 });

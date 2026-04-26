@@ -46,6 +46,7 @@ export interface PostMedia {
  
 export interface Post {
   id: string;
+  createdAt?: any; // Firestore Timestamp or ISO string — optional since it's set server-side
   filmName: string;
   director: string[];
   recruitmentDeadline: string; // ISO 8601

@@ -60,6 +60,12 @@ export const createPost = async (
 interface ApplyParams {
   roleTitle: string;
   message?: string;
+  coverLetter?: string;
+  phone?: string;
+  email?: string;
+  availabilityStart?: string;
+  availabilityEnd?: string;
+  portfolioItemIds?: string[];
 }
 
 export const applyToPost = async (
@@ -82,11 +88,35 @@ export const applyToPost = async (
       applicantId,
       roleTitle: params.roleTitle,
       message: params.message ?? '',
+      coverLetter: params.coverLetter ?? '',
+      phone: params.phone ?? '',
+      email: params.email ?? '',
+      availabilityStart: params.availabilityStart ?? null,
+      availabilityEnd: params.availabilityEnd ?? null,
+      portfolioItemIds: params.portfolioItemIds ?? [],
       status: 'pending',
       appliedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
 
   return docRef.id;
+};
+
+/** Toggle a post in/out of the current user's savedPostId array. */
+export const toggleSavePost = async (
+  userId: string,
+  postId: string,
+  currentlySaved: boolean
+): Promise<void> => {
+  const ref = firestore().collection(Collections.USERS).doc(userId);
+  if (currentlySaved) {
+    await ref.update({
+      savedPostId: firebase.firestore.FieldValue.arrayRemove(postId),
+    });
+  } else {
+    await ref.update({
+      savedPostId: firebase.firestore.FieldValue.arrayUnion(postId),
+    });
+  }
 };
 
 export const getApplicants = async (postId: string) => {
