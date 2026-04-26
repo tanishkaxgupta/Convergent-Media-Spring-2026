@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SvgXml } from 'react-native-svg';
 import { firestore, Collections } from '../services/firebase';
 import { Post, RoleType } from '../types/post';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -20,6 +21,10 @@ type Route = RouteProp<RootStackParamList, 'PostDetail'>;
 
 const BG = '#2C2C2C';
 const CARD_BG = '#FFFFFF';
+
+const APPLICANTS_BADGE_SVG = `<svg width="22" height="21" viewBox="0 0 22 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M11 3.8099C11.6719 3.08329 12.6549 2.625 13.75 2.625C15.775 2.625 17.4167 4.192 17.4167 6.125C17.4167 8.058 15.775 9.625 13.75 9.625C12.6549 9.625 11.6719 9.16671 11 8.4401M13.75 18.375H2.75V17.5C2.75 14.6005 5.21243 12.25 8.25 12.25C11.2876 12.25 13.75 14.6005 13.75 17.5V18.375ZM13.75 18.375H19.25V17.5C19.25 14.6005 16.7876 12.25 13.75 12.25C12.7482 12.25 11.809 12.5057 11 12.9524M11.9167 6.125C11.9167 8.058 10.275 9.625 8.25 9.625C6.22496 9.625 4.58333 8.058 4.58333 6.125C4.58333 4.192 6.22496 2.625 8.25 2.625C10.275 2.625 11.9167 4.192 11.9167 6.125Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -42,6 +47,7 @@ interface Application {
   appliedAt: string;
   applicantName?: string;
   applicantSchool?: string;
+  applicantHeadshotUrl?: string;
   skills?: string[];
 }
 
@@ -69,108 +75,71 @@ export const PostDetailScreen = () => {
   const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Fetch post
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
     const unsubPost = firestore()
       .collection(Collections.POSTS)
       .doc(postId)
-      .onSnapshot(snap => {
-        if (snap.exists) {
-          setPost({ id: snap.id, ...snap.data() } as Post);
-        }
-        setLoading(false);
+      .onSnapshot(
+        snap => {
+          clearTimeout(timeout);
+          if (snap.exists) {
+            setPost({ id: snap.id, ...snap.data() } as Post);
+          }
+          setLoading(false);
         },
         err => {
-        console.error('Post listener error:', err);
-        setLoading(false);
+          console.error('Post listener error:', err);
+          clearTimeout(timeout);
+          setLoading(false);
         }
-    );
+      );
 
-    // Fetch applications for this post
-//     const unsubApps = firestore()
-//       .collection(Collections.APPLICATIONS)
-//       .where('postId', '==', postId)
-//       .onSnapshot(
-//         async snap => {
-//         const apps = await Promise.all(
-//           snap.docs.map(async doc => {
-//             const data = doc.data();
-//             // Fetch applicant name from users collection
-//             const userSnap = await firestore()
-//               .collection(Collections.USERS)
-//               .doc(data.applicantId)
-//               .get();
-//             const userData = userSnap.exists ? userSnap.data() : null;
-//             return {
-//               id: doc.id,
-//               ...data,
-//               applicantName: userData?.basicInfo?.name ?? 'Unknown',
-//               applicantSchool: userData?.basicInfo?.location?.city
-//                 ? `${userData.basicInfo.location.city} @ UT Austin`
-//                 : userData?.roleInfo?.primaryRole ?? '',
-//               skills: userData?.attributes?.skills?.slice(0, 2) ?? [],
-//             } as Application;
-//           })
-//         );
-//         setApplications(apps);
-//       });
+    const unsubApps = firestore()
+      .collection(Collections.APPLICATIONS)
+      .where('postId', '==', postId)
+      .onSnapshot(
+        async snap => {
+          try {
+            const apps = await Promise.all(
+              snap.docs.map(async doc => {
+                const data = doc.data();
+                let userData = null;
+                try {
+                  const userSnap = await firestore()
+                    .collection(Collections.USERS)
+                    .doc(data.applicantId)
+                    .get();
+                  userData = userSnap.exists ? userSnap.data() : null;
+                } catch {
+                  // show applicant with unknown name rather than crashing
+                }
+                return {
+                  id: doc.id,
+                  ...data,
+                  applicantName: userData?.basicInfo?.name ?? 'Unknown',
+                  applicantSchool: userData?.basicInfo?.location?.city
+                    ? `${userData.basicInfo.location.city} @ UT Austin`
+                    : userData?.roleInfo?.primaryRole ?? '',
+                  applicantHeadshotUrl: userData?.basicInfo?.headshotUrl ?? '',
+                  skills: userData?.attributes?.skills?.slice(0, 2) ?? [],
+                } as Application;
+              })
+            );
+            setApplications(apps);
+          } catch (err) {
+            console.error('Applications processing error:', err);
+          }
+        },
+        err => console.error('Applications listener error:', err)
+      );
 
-//     return () => {
-//       unsubPost();
-//       unsubApps();
-//     };
-//   }, [postId]);
-
-const unsubApps = firestore()
-.collection(Collections.APPLICATIONS)
-.where('postId', '==', postId)
-.onSnapshot(
-  async snap => {
-    try {
-      const apps: Application[] = [];
-
-      for (const doc of snap.docs) {
-        const data = doc.data();
-
-        let userData = null;
-
-        try {
-          const userSnap = await firestore()
-            .collection(Collections.USERS)
-            .doc(data.applicantId)
-            .get();
-
-          userData = userSnap.exists ? userSnap.data() : null;
-        } catch (e) {
-          console.warn('User fetch failed:', e);
-        }
-
-        apps.push({
-          id: doc.id,
-          ...data,
-          applicantName: userData?.basicInfo?.name ?? 'Unknown',
-          applicantSchool:
-            userData?.basicInfo?.location?.city
-              ? `${userData.basicInfo.location.city} @ UT Austin`
-              : userData?.roleInfo?.primaryRole ?? '',
-          skills: userData?.attributes?.skills?.slice(0, 2) ?? [],
-        } as Application);
-      }
-
-      setApplications(apps);
-    } catch (err) {
-      console.error('Applications processing error:', err);
-    }
-  },
-  err => {
-    console.error('Applications listener error:', err);
-  }
-);
-
-return () => {
-unsubPost();
-unsubApps();
-};
-}, [postId]);
+    return () => {
+      clearTimeout(timeout);
+      unsubPost();
+      unsubApps();
+    };
+  }, [postId]);
 
   const toggleHide = (role: string) => {
     setHiddenRoles(prev => {
@@ -246,7 +215,10 @@ unsubApps();
         <View style={styles.applicantsHeader}>
           <Text style={styles.applicantsTitle}>Applicants</Text>
           <View style={styles.applicantsBadge}>
-            <Text style={styles.applicantsBadgeText}>👥 {totalApplicants}</Text>
+            <View style={styles.applicantsBadgeContent}>
+              <SvgXml xml={APPLICANTS_BADGE_SVG} width={16} height={16} />
+              <Text style={styles.applicantsBadgeText}>{totalApplicants}</Text>
+            </View>
           </View>
         </View>
 
@@ -275,7 +247,11 @@ unsubApps();
                   })}
                 >
                   <View style={styles.applicantCardLeft}>
-                    <View style={styles.applicantAvatar} />
+                    {app.applicantHeadshotUrl ? (
+                      <Image source={{ uri: app.applicantHeadshotUrl }} style={styles.applicantAvatar} />
+                    ) : (
+                      <View style={styles.applicantAvatar} />
+                    )}
                     <View>
                       <Text style={styles.applicantName}>{app.applicantName}</Text>
                       <Text style={styles.applicantSchool}>{app.applicantSchool}</Text>
@@ -345,6 +321,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
+  applicantsBadgeContent: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   applicantsBadgeText: { color: '#FFFFFF', fontSize: 13 },
   roleSection: { marginBottom: 20 },
   roleHeader: {

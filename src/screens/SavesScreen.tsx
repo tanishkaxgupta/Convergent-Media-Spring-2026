@@ -51,6 +51,8 @@ const MOCK_AVATAR_BY_POST_ID: Record<string, string> = {
   'mock-4': 'https://i.pravatar.cc/120?img=28',
 };
 
+
+
 function formatDateRange(startISO: string, endISO: string): string {
   const start = new Date(startISO);
   const end = new Date(endISO);
@@ -383,13 +385,21 @@ const PostDetailModal = ({
   );
 };
 
-function rowToCardItem(row: SaveListRow, showPostPreview: boolean): CardItem {
+function rowToCardItem(
+  row: SaveListRow,
+  showPostPreview: boolean,
+  posterHeadshotById: Record<string, string>,
+): CardItem {
   const { post, statusLabel, application } = row;
   const deadline = formatDeadline(post.recruitmentDeadline);
   const applied =
     showPostPreview && application?.appliedAt
       ? `Applied ${formatAppliedAt(application.appliedAt)}`
       : undefined;
+  const headshotUrl =
+    posterHeadshotById[post.postedBy?.userId] ||
+    MOCK_AVATAR_BY_POST_ID[post.id] ||
+    undefined;
   return {
     name: post.postedBy.name,
     university:
@@ -397,7 +407,7 @@ function rowToCardItem(row: SaveListRow, showPostPreview: boolean): CardItem {
       `${post.shootingLocation.city}, ${post.shootingLocation.state}`,
     description: cardDescription(post),
     status: statusLabel,
-    avatarUrl: showPostPreview ? MOCK_AVATAR_BY_POST_ID[post.id] : undefined,
+    avatarUrl: headshotUrl,
     post,
     filmName: post.filmName,
     showPostPreview,
@@ -413,7 +423,7 @@ type TabType = 'Saved' | 'Applied' | 'Past';
 export const SavesScreen = () => {
   const { top } = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>('Saved');
-  const { savedPostId, applications, postsById, loading } = useSavesData();
+  const { savedPostId, applications, postsById, posterHeadshotById, loading } = useSavesData();
   const [detailPost, setDetailPost] = useState<Post | null>(null);
   const [applyPost, setApplyPost] = useState<Post | null>(null);
 
@@ -502,7 +512,7 @@ export const SavesScreen = () => {
           keyExtractor={item => item.rowKey}
           renderItem={({ item }) => (
             <SaveCard
-              item={rowToCardItem(item, activeTab === 'Applied' || activeTab === 'Past')}
+              item={rowToCardItem(item, activeTab === 'Applied' || activeTab === 'Past', posterHeadshotById)}
               showApply={activeTab === 'Saved'}
               onApply={p => setApplyPost(p)}
               onViewDetails={p => setDetailPost(p)}

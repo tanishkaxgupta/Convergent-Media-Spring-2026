@@ -23,6 +23,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Applicant'>;
 type Route = RouteProp<RootStackParamList, 'Applicant'>;
 
 const BG = '#2C2C2C';
+const SURFACE = '#3A3A3A';
 const CARD_BG = '#FFFFFF';
 const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 52) / 2;
@@ -43,18 +44,19 @@ export const ApplicantScreen = () => {
   const [feedbackAction, setFeedbackAction] = useState<'accept' | 'decline'>('decline');
   const [feedbackText, setFeedbackText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
   useEffect(() => {
-    const unsub = firestore()
+    firestore()
       .collection(Collections.USERS)
       .doc(applicantId)
-      .onSnapshot(snap => {
+      .get()
+      .then(snap => {
         if (snap.exists) {
           setProfile({ id: snap.id, ...snap.data() } as UserProfile);
         }
-        setLoading(false);
-      });
-    return unsub;
+      })
+      .catch(err => console.error('Failed to load applicant:', err))
+      .finally(() => setLoading(false));
   }, [applicantId]);
 
   const handleDecline = () => {
@@ -75,14 +77,10 @@ export const ApplicantScreen = () => {
     setSubmitting(true);
     try {
       const newStatus = feedbackAction === 'accept' ? 'accepted' : 'rejected';
-
-      // Update application status
       await firestore()
         .collection(Collections.APPLICATIONS)
         .doc(applicationId)
         .update({ status: newStatus });
-
-      // Send notification to applicant
       await firestore()
         .collection('notifications')
         .add({
@@ -94,12 +92,11 @@ export const ApplicantScreen = () => {
           createdAt: firestore.FieldValue.serverTimestamp(),
           read: false,
         });
-
       setShowFeedback(false);
       setFeedbackText('');
       Alert.alert(
         feedbackAction === 'accept' ? 'Accepted!' : 'Declined',
-        `Feedback sent to applicant.`,
+        'Feedback sent to applicant.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (err: any) {
@@ -118,6 +115,7 @@ export const ApplicantScreen = () => {
   }
 
   const { basicInfo, roleInfo, attributes, gallery } = profile;
+  const handle = basicInfo.name.toLowerCase().replace(/\s+/g, '');
 
   return (
     <View style={[styles.container, { paddingTop: top }]}>
@@ -130,35 +128,36 @@ export const ApplicantScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Applicant info row */}
-      <View style={styles.applicantRow}>
-        {basicInfo.headshotUrl ? (
-          <Image source={{ uri: basicInfo.headshotUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatar} />
-        )}
-        <View>
+      {/* Applicant info card */}
+      <View style={styles.applicantCard}>
+        <View style={styles.avatarWrap}>
+          {basicInfo.headshotUrl ? (
+            <Image source={{ uri: basicInfo.headshotUrl }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar} />
+          )}
+          <View style={[
+            styles.statusDot,
+            { backgroundColor: roleInfo.availability === 'available' ? '#4CAF50' : '#E53935' },
+          ]} />
+        </View>
+        <View style={styles.applicantInfo}>
           <Text style={styles.applicantName}>{basicInfo.name}</Text>
           {basicInfo.pronouns ? (
-            <Text style={styles.applicantHandle}>@{basicInfo.name.toLowerCase().replace(' ', '')}</Text>
+            <Text style={styles.applicantHandle}>@{handle}</Text>
           ) : null}
           <Text style={styles.applicantMeta}>
             {roleInfo.primaryRole} @ {basicInfo.location.city}
           </Text>
         </View>
-        <View style={styles.availabilityBadge}>
-          <Text style={styles.availabilityText}>
-            {roleInfo.availability === 'available' ? '🟢' : '🔴'}
-          </Text>
-        </View>
       </View>
 
-      {/* Tabs */}
+      {/* Pill tab bar */}
       <View style={styles.tabBar}>
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
+            style={[styles.tabPill, activeTab === tab && styles.tabPillActive]}
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
@@ -166,6 +165,16 @@ export const ApplicantScreen = () => {
             </Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Role/pay pills — always visible below tabs */}
+      <View style={styles.pillRow}>
+        <View style={styles.pill}>
+          <Text style={styles.pillText}> {roleInfo.primaryRole} Application</Text>
+        </View>
+        <View style={styles.pill}>🧳
+          <Text style={styles.pillText}>$ {roleInfo.experienceLevel}</Text>
+        </View>
       </View>
 
       {/* Tab content */}
@@ -176,25 +185,30 @@ export const ApplicantScreen = () => {
       >
         {activeTab === 'Profile' && (
           <>
-            {/* Meta pills */}
-            <View style={styles.pillRow}>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>🏫 HMUA Application</Text>
-              </View>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>💵 {roleInfo.experienceLevel}</Text>
-              </View>
-            </View>
-
             <Text style={styles.sectionTitle}>Primary Information</Text>
-            <View style={styles.infoCard}>
+            <View style={styles.infoField}>
               <Text style={styles.infoLabel}>Location</Text>
               <Text style={styles.infoValue}>
                 {basicInfo.location.city}, {basicInfo.location.state}
               </Text>
-              <Text style={styles.infoLabel}>Bio</Text>
-              <Text style={styles.infoValue}>{basicInfo.bio}</Text>
             </View>
+            {basicInfo.email ? (
+              <View style={styles.infoField}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{basicInfo.email}</Text>
+              </View>
+            ) : null}
+            {basicInfo.phone ? (
+              <View style={styles.infoField}>
+                <Text style={styles.infoLabel}>Phone number</Text>
+                <Text style={styles.infoValue}>{basicInfo.phone}</Text>
+              </View>
+            ) : null}
+            <View style={styles.divider} />
+
+            <Text style={styles.sectionTitle}>Bio</Text>
+            <Text style={styles.bioText}>{basicInfo.bio}</Text>
+            <View style={styles.divider} />
 
             {attributes.skills.length > 0 && (
               <>
@@ -213,16 +227,14 @@ export const ApplicantScreen = () => {
 
         {activeTab === 'Portfolio' && (
           <>
-            <Text style={styles.sectionTitle}>Portfolio</Text>
             {gallery.photos.length > 0 ? (
               <View style={styles.photoGrid}>
                 {gallery.photos.map(photo => (
-                  <TouchableOpacity key={photo.id} onPress={() => setSelectedImage(photo.url)}>
                   <Image
+                    key={photo.id}
                     source={{ uri: photo.url }}
                     style={styles.photoItem}
                   />
-                </TouchableOpacity>
                 ))}
               </View>
             ) : (
@@ -257,33 +269,39 @@ export const ApplicantScreen = () => {
         animationType="slide"
         onRequestClose={() => setShowFeedback(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Applicant Feedback</Text>
-            <Text style={styles.modalSubtitle}>
-              {feedbackAction === 'decline'
-                ? `You are about to decline ${basicInfo.name}'s application. Please provide feedback to explain your decision.`
-                : `You are about to accept ${basicInfo.name}'s application. Add a message for them.`}
-            </Text>
-            <TextInput
-              style={styles.feedbackInput}
-              value={feedbackText}
-              onChangeText={t => setFeedbackText(t.slice(0, 500))}
-              placeholder="Provide feedback for the applicant."
-              placeholderTextColor="#AAAAAA"
-              multiline
-              textAlignVertical="top"
-            />
-            <Text style={styles.feedbackCounter}>{feedbackText.length}/500 characters</Text>
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.5 }]}
-              onPress={handleSubmitFeedback}
-              disabled={submitting}
-            >
-              <Text style={styles.submitBtnText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFeedback(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Applicant Feedback</Text>
+              <Text style={styles.modalSubtitle}>
+                {feedbackAction === 'decline'
+                  ? `You are about to decline ${basicInfo.name}'s application. Please provide feedback to explain your decision.`
+                  : `You are about to accept ${basicInfo.name}'s application. Add a message for them.`}
+              </Text>
+              <TextInput
+                style={styles.feedbackInput}
+                value={feedbackText}
+                onChangeText={t => setFeedbackText(t.slice(0, 500))}
+                placeholder="Provide feedback for the applicant."
+                placeholderTextColor="#AAAAAA"
+                multiline
+                textAlignVertical="top"
+              />
+              <Text style={styles.feedbackCounter}>{feedbackText.length}/500 characters</Text>
+              <TouchableOpacity
+                style={[styles.submitBtn, submitting && { opacity: 0.5 }]}
+                onPress={handleSubmitFeedback}
+                disabled={submitting}
+              >
+                <Text style={styles.submitBtnText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -303,92 +321,137 @@ const styles = StyleSheet.create({
   backArrow: { fontSize: 28, color: '#FFFFFF', lineHeight: 30 },
   headerTitle: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
 
-  applicantRow: {
+  // ── Applicant card ──
+  applicantCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 12,
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    padding: 16,
+    gap: 14,
+    marginBottom: 16,
   },
+  avatarWrap: { position: 'relative' },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#888888',
   },
-  applicantName: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  applicantHandle: { fontSize: 12, color: '#AAAAAA', marginTop: 1 },
-  applicantMeta: { fontSize: 12, color: '#AAAAAA', marginTop: 2 },
-  availabilityBadge: { marginLeft: 'auto' },
-  availabilityText: { fontSize: 16 },
+  statusDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: SURFACE,
+  },
+  applicantInfo: { flex: 1 },
+  applicantName: { fontSize: 17, fontWeight: '700', color: '#FFFFFF', marginBottom: 2 },
+  applicantHandle: { fontSize: 13, color: '#AAAAAA', marginBottom: 3 },
+  applicantMeta: { fontSize: 13, color: '#AAAAAA' },
 
+  // ── Pill tab bar ──
   tabBar: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#3A3A3A',
-    marginBottom: 4,
+    gap: 8,
+    marginBottom: 14,
   },
-  tabItem: { paddingVertical: 10, marginRight: 20 },
-  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#FFFFFF' },
-  tabText: { fontSize: 14, color: '#AAAAAA' },
-  tabTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  tabPill: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#AAAAAA',
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  tabPillActive: { backgroundColor: CARD_BG, borderColor: CARD_BG },
+  tabText: { fontSize: 12, color: '#AAAAAA', fontWeight: '500' },
+  tabTextActive: { color: '#1A1A1A', fontWeight: '700' },
 
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
-
-  pillRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  // ── Role pills ──
+  pillRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
   pill: {
-    backgroundColor: '#3A3A3A',
+    backgroundColor: SURFACE,
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
   pillText: { fontSize: 12, color: '#FFFFFF' },
 
+  // ── Scroll ──
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
+
+  // ── Profile tab ──
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 10,
     marginTop: 4,
   },
-  infoCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 16,
-    gap: 6,
-    marginBottom: 16,
+  infoField: {
+    marginBottom: 12,
   },
-  infoLabel: { fontSize: 11, fontWeight: '700', color: '#888888', textTransform: 'uppercase' },
-  infoValue: { fontSize: 14, color: '#1A1A1A', marginBottom: 8 },
+  infoLabel: {
+    fontSize: 12,
+    color: '#AAAAAA',
+    marginBottom: 2,
+  },
+  infoValue: { fontSize: 14, color: '#FFFFFF' },
+  divider: {
+    borderBottomWidth: 1,
+    borderBottomColor: SURFACE,
+    marginVertical: 20,
+  },
+  bioText: {
+    fontSize: 14,
+    color: '#CCCCCC',
+    lineHeight: 21,
+    marginBottom: 20,
+  },
 
+  // ── Skills ──
   skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   skillPill: {
-    backgroundColor: '#3A3A3A',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
-  skillText: { fontSize: 12, color: '#FFFFFF' },
+  skillText: { fontSize: 13, color: '#FFFFFF' },
 
+  // ── Portfolio ──
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoItem: {
     width: PHOTO_SIZE,
-    height: PHOTO_SIZE,
+    height: PHOTO_SIZE * 1.2,
     borderRadius: 10,
-    backgroundColor: '#3A3A3A',
+    backgroundColor: SURFACE,
   },
 
   emptyText: { color: '#AAAAAA', fontSize: 14, textAlign: 'center', marginTop: 40 },
 
+  // ── Action row ──
   actionRow: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingTop: 12,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#3A3A3A',
+    borderTopColor: SURFACE,
   },
   declineBtn: {
     flex: 1,
@@ -407,28 +470,28 @@ const styles = StyleSheet.create({
   },
   acceptBtnText: { color: '#1A1A1A', fontSize: 15, fontWeight: '700' },
 
-  // Feedback modal
+  // ── Feedback modal ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: BG,
+    backgroundColor: SURFACE,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
+  modalTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
   modalSubtitle: { fontSize: 13, color: '#AAAAAA', lineHeight: 18, marginBottom: 16 },
   feedbackInput: {
-    backgroundColor: '#3A3A3A',
+    backgroundColor: '#F0F0F0',
     borderRadius: 12,
     padding: 14,
     fontSize: 14,
-    color: '#FFFFFF',
-    minHeight: 120,
+    color: '#1A1A1A',
+    minHeight: 140,
   },
   feedbackCounter: { fontSize: 11, color: '#888888', marginTop: 6, marginBottom: 16 },
   submitBtn: {
