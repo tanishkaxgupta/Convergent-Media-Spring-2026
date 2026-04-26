@@ -52,6 +52,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+
+function formatDateRange(startISO: string, endISO: string): string {
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[start.getMonth()]} ${start.getDate()} – ${months[end.getMonth()]} ${end.getDate()}`;
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
@@ -264,16 +272,14 @@ const PostDetailModal = ({
   );
 };
 
-// ── SavesScreen ───────────────────────────────────────────────────────────────
-
 type TabType = 'Saved' | 'Applied' | 'Past';
 
 export const SavesScreen = () => {
   const { top } = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>('Saved');
-  const { savedPostId, applications, postsById, loading } = useSavesData();
-  const [detailPost, setDetailPost]   = useState<Post | null>(null);
-  const [applyPost,  setApplyPost]    = useState<Post | null>(null);
+  const { savedPostId, applications, postsById, posterHeadshotById, loading } = useSavesData();
+  const [detailPost, setDetailPost] = useState<Post | null>(null);
+  const [applyPost, setApplyPost] = useState<Post | null>(null);
 
   // ── Derived lists ──────────────────────────────────────────────────────────
 
@@ -373,7 +379,7 @@ export const SavesScreen = () => {
       ) : activeTab === 'Saved' ? (
         <FlatList
           data={savedPosts}
-          keyExtractor={p => p.id}
+          keyExtractor={item => item.id}
           renderItem={renderSaved}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

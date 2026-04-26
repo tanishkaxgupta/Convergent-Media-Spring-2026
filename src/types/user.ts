@@ -40,6 +40,8 @@ export interface UserProfile {
     headshotUrl: string;
     bio: string;
     school?: string;
+    email?: string;
+    phone?: string;
     location: {
       city: string;
       state: string;

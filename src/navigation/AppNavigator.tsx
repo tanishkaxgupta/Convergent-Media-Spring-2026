@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { SearchScreen } from '../screens/SearchScreen';
@@ -7,7 +8,16 @@ import { SavesScreen } from '../screens/SavesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { PostingScreen } from '../screens/PostingScreen';
+import { PostDetailScreen } from '../screens/PostDetailScreen';
+import { ApplicantScreen } from '../screens/ApplicantScreen';
 
+export type RootStackParamList = {
+  Tabs: undefined;
+  PostDetail: { postId: string };
+  Applicant: { applicantId: string; postId: string; applicationId: string };
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
 const homeSvg = (color: string, focused: boolean) => focused
@@ -57,7 +67,7 @@ const PLUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fi
 // Dummy screen — never actually shown, the + tab opens a modal instead
 const EmptyScreen = () => <View style={{ flex: 1, backgroundColor: '#2D2C2C' }} />;
 
-export const AppNavigator = () => {
+const TabNavigator = () => {
   const [showPosting, setShowPosting] = useState(false);
 
   return (
@@ -74,9 +84,7 @@ export const AppNavigator = () => {
           tabBarActiveTintColor: '#E5674E',
           tabBarInactiveTintColor: '#AAAAAA',
           tabBarLabel: () => null,
-          tabBarItemStyle: {
-            paddingVertical: 8,
-          },
+          tabBarItemStyle: { paddingVertical: 8 },
         }}
       >
         <Tab.Screen
@@ -121,12 +129,15 @@ export const AppNavigator = () => {
           }}
         />
       </Tab.Navigator>
-
-      {/* Slides up over whatever tab you're on */}
-      <PostingScreen
-        visible={showPosting}
-        onClose={() => setShowPosting(false)}
-      />
+      <PostingScreen visible={showPosting} onClose={() => setShowPosting(false)} />
     </>
   );
 };
+
+export const AppNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Tabs" component={TabNavigator} />
+    <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+    <Stack.Screen name="Applicant" component={ApplicantScreen} />
+  </Stack.Navigator>
+);

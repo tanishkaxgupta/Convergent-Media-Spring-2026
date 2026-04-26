@@ -102,6 +102,7 @@ export function useSavesData() {
   const [savedPostId, setSavedPostId] = useState<string[]>([]);
   const [firestoreApplications, setFirestoreApplications] = useState<SavesApplication[]>([]);
   const [postsById, setPostsById] = useState<Record<string, Post>>({});
+  const [posterHeadshotById, setPosterHeadshotById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   /**
@@ -218,6 +219,29 @@ export function useSavesData() {
         }
         mergeMockPostsForIds(map, stringIds);
         if (!cancelled) setPostsById(map);
+
+        const posterUserIds = [...new Set(
+          Object.values(map)
+            .map(p => p.postedBy?.userId)
+            .filter((id): id is string => Boolean(id))
+        )];
+        const headshotMap: Record<string, string> = {};
+        for (const part of chunk(posterUserIds, 10)) {
+          if (part.length === 0) continue;
+          try {
+            const snap = await firestore()
+              .collection(Collections.USERS)
+              .where(firebase.firestore.FieldPath.documentId(), 'in', part)
+              .get();
+            snap.docs.forEach(doc => {
+              const url = doc.data()?.basicInfo?.headshotUrl;
+              if (url) headshotMap[doc.id] = url;
+            });
+          } catch {
+            // headshots are non-critical, skip on error
+          }
+        }
+        if (!cancelled) setPosterHeadshotById(headshotMap);
       } catch (e) {
         console.error('useSavesData posts:', e);
         if (!cancelled) {
@@ -235,5 +259,5 @@ export function useSavesData() {
     };
   }, [postIdsKey]);
 
-  return { savedPostId, applications, postsById, loading };
+  return { savedPostId, applications, postsById, posterHeadshotById, loading };
 }
