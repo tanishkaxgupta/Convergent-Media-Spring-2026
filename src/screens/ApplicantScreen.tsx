@@ -172,8 +172,8 @@ export const ApplicantScreen = () => {
         <View style={styles.pill}>
           <Text style={styles.pillText}> {roleInfo.primaryRole} Application</Text>
         </View>
-        <View style={styles.pill}>🧳
-          <Text style={styles.pillText}>$ {roleInfo.experienceLevel}</Text>
+        <View style={styles.pill}>
+          <Text style={styles.pillText}> $ {roleInfo.experienceLevel}</Text>
         </View>
       </View>
 
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   },
   declineBtn: {
     flex: 1,
-    backgroundColor: '#E8453C',
+    backgroundColor: '#FB7257',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',

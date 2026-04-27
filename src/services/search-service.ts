@@ -154,11 +154,6 @@ import firebase from 'firebase/compat/app';
       ...doc.data(),
     })) as Post[];
 
-    // Fall back to mock data when Firestore collection is empty (dev / no data seeded yet)
-    if (posts.length === 0) {
-      return filterMockPosts(options);
-    }
-
     // Firestore doesn't give total count cheaply — estimate from current page
     const hasMore = snap.docs.length === pageSize;
     const total = hasMore ? page * pageSize + 1 : (page - 1) * pageSize + snap.docs.length;

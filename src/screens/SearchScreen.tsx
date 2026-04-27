@@ -35,6 +35,15 @@ const CLEAR_ICON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" 
   <path d="M2 2L12 12M12 2L2 12" stroke="#999999" stroke-width="1.6" stroke-linecap="round"/>
 </svg>`;
 
+const BOOKMARK_ICON = (filled: boolean) =>
+  filled
+    ? `<svg width="18" height="22" viewBox="0 0 18 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 2H16C16.5523 2 17 2.44772 17 3V20.382C17 20.7607 16.572 20.9895 16.2764 20.7764L9 15.5L1.72361 20.7764C1.42801 20.9895 1 20.7607 1 20.382V3C1 2.44772 1.44772 2 2 2Z" fill="#FB7257" stroke="#FB7257" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>`
+    : `<svg width="18" height="22" viewBox="0 0 18 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 2H16C16.5523 2 17 2.44772 17 3V20.382C17 20.7607 16.572 20.9895 16.2764 20.7764L9 15.5L1.72361 20.7764C1.42801 20.9895 1 20.7607 1 20.382V3C1 2.44772 1.44772 2 2 2Z" stroke="#AAAAAA" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>`;
+
 const PIN_ICON = `<svg width="12" height="15" viewBox="0 0 12 15" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M6 0.5C3.515 0.5 1.5 2.515 1.5 5C1.5 8.375 6 14.5 6 14.5C6 14.5 10.5 8.375 10.5 5C10.5 2.515 8.485 0.5 6 0.5Z" stroke="white" stroke-width="1.4" stroke-linejoin="round"/>
   <circle cx="6" cy="5" r="1.5" fill="white"/>
@@ -332,13 +341,17 @@ const PostDetailModal = ({
 const PostCard = ({
   post,
   posterHeadshotUrl,
+  isSaved,
   onApply,
   onPress,
+  onSaveToggle,
 }: {
   post: Post;
   posterHeadshotUrl?: string;
+  isSaved: boolean;
   onApply: (post: Post) => void;
   onPress: (post: Post) => void;
+  onSaveToggle: (post: Post) => void;
 }) => {
   const description = post.description
     ? getFirstParagraph(post.description)
@@ -360,6 +373,13 @@ const PostCard = ({
           <Text style={styles.posterName}>{post.postedBy.name}</Text>
           {postedLabel ? <Text style={styles.postedDate}>{postedLabel}</Text> : null}
         </View>
+        <TouchableOpacity
+          hitSlop={12}
+          onPress={(e) => { e.stopPropagation?.(); onSaveToggle(post); }}
+          activeOpacity={0.7}
+        >
+          <SvgXml xml={BOOKMARK_ICON(isSaved)} width={18} height={22} />
+        </TouchableOpacity>
       </View>
 
       {/* Main description */}
@@ -717,9 +737,9 @@ export const SearchScreen = () => {
     clearFilters,
   } = usePostSearch();
 
-  // Default to University of Texas at Austin on first load
+  // Default to UT Austin on first load (matches schoolLower stored in Firestore)
   useEffect(() => {
-    setSchool('University of Texas at Austin');
+    setSchool('UT Austin');
   }, []);
 
   // Derive autocomplete suggestions from current results
@@ -777,6 +797,23 @@ export const SearchScreen = () => {
     inputRef.current?.blur();
   }
 
+  async function handleSaveToggle(post: Post) {
+    const isSaved = savedPostIds.includes(post.id);
+    // Optimistic update
+    setSavedPostIds(prev =>
+      isSaved ? prev.filter(id => id !== post.id) : [...prev, post.id]
+    );
+    try {
+      await toggleSavePost(CURRENT_USER_ID, post.id, isSaved);
+    } catch {
+      // Revert on failure
+      setSavedPostIds(prev =>
+        isSaved ? [...prev, post.id] : prev.filter(id => id !== post.id)
+      );
+      Alert.alert('Error', 'Could not save post. Please try again.');
+    }
+  }
+
   function handleApply(post: Post) {
     setSelectedPost(null); // close detail modal if open
     setApplyPost(post);
@@ -792,8 +829,10 @@ export const SearchScreen = () => {
     <PostCard
       post={item}
       posterHeadshotUrl={getPosterHeadshotUrl(item)}
+      isSaved={savedPostIds.includes(item.id)}
       onApply={handleApply}
       onPress={(post) => setSelectedPost(post)}
+      onSaveToggle={handleSaveToggle}
     />
   );
 

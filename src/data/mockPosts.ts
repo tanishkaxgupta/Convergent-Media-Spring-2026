@@ -1,5 +1,13 @@
 import { Post } from '../types/post';
 
+/** Headshot URLs keyed by the userId values used in MOCK_POSTS[].postedBy.userId */
+export const MOCK_POSTER_HEADSHOTS: Record<string, string> = {
+  'user-1': 'https://randomuser.me/api/portraits/women/22.jpg',
+  'user-2': 'https://randomuser.me/api/portraits/men/32.jpg',
+  'user-3': 'https://randomuser.me/api/portraits/women/7.jpg',
+  'user-4': 'https://randomuser.me/api/portraits/men/44.jpg',
+};
+
 export const MOCK_POSTS: Post[] = [
   {
     id: 'mock-1',
@@ -105,7 +113,7 @@ export const MOCK_POSTS: Post[] = [
       },
     ],
     shootingLocation: { city: 'Austin', state: 'TX', details: 'South Austin' },
-    postedBy: { userId: 'user-3', name: 'Jenny Doe', school: 'University of Texas at Austin' },
+    postedBy: { userId: 'user-3', name: 'Alexa Martinez', school: 'University of Texas at Austin' },
     media: { script: '', videos: [], images: [] },
     searchKeywords: ['dancer', 'composer', 'quiet hours', 'music', 'contemporary', 'hmua'],
     roleTypesList: ['crew', 'musician'],
@@ -136,7 +144,7 @@ export const MOCK_POSTS: Post[] = [
       },
     ],
     shootingLocation: { city: 'Austin', state: 'TX', details: 'The Drag & campus' },
-    postedBy: { userId: 'user-4', name: 'Jess Doe', school: 'University of Texas at Austin' },
+    postedBy: { userId: 'user-4', name: 'Alex Maide', school: 'University of Texas at Austin' },
     media: { script: '', videos: [], images: [] },
     searchKeywords: ['editor', 'production assistant', 'the last signal', 'sci-fi', 'austin'],
     roleTypesList: ['tech', 'crew'],

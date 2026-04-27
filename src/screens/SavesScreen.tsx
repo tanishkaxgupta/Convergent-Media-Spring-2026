@@ -100,6 +100,17 @@ function sortByDate(apps: SavesApplication[]): SavesApplication[] {
   );
 }
 
+function uniqueById<T extends { id?: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    const key = item.id;
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // ── StatusBadge ───────────────────────────────────────────────────────────────
 
 const StatusBadge = ({ label }: { label: string }) => {
@@ -289,7 +300,7 @@ export const SavesScreen = () => {
   // ── Derived lists ──────────────────────────────────────────────────────────
 
   const savedPosts = useMemo(
-    () => savedPostId.map(id => postsById[id]).filter(Boolean) as Post[],
+    () => uniqueById(savedPostId.map(id => postsById[id]).filter(Boolean) as Post[]),
     [savedPostId, postsById]
   );
 
@@ -387,7 +398,7 @@ export const SavesScreen = () => {
       ) : activeTab === 'Saved' ? (
         <FlatList
           data={savedPosts}
-          keyExtractor={item => item.id}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
           renderItem={renderSaved}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -396,7 +407,7 @@ export const SavesScreen = () => {
       ) : activeTab === 'Applied' ? (
         <FlatList
           data={activeApps}
-          keyExtractor={a => a.id}
+          keyExtractor={(a, index) => `${a.id ?? a.postId}-applied-${index}`}
           renderItem={renderApplied}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -405,7 +416,7 @@ export const SavesScreen = () => {
       ) : (
         <FlatList
           data={pastApps}
-          keyExtractor={a => a.id}
+          keyExtractor={(a, index) => `${a.id ?? a.postId}-past-${index}`}
           renderItem={renderPast}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

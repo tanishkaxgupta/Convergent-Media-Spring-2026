@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import firebase from 'firebase/compat/app';
 import { firestore, Collections } from '../services/firebase';
 import { Post } from '../types/post';
-import { MOCK_POSTS } from '../data/mockPosts';
+import { MOCK_POSTS, MOCK_POSTER_HEADSHOTS } from '../data/mockPosts';
 
 /** Matches ApplyScreen until Firebase Auth supplies a real applicant id. */
 const APPLICANT_PLACEHOLDER_ID = 'current-user-placeholder';
@@ -240,6 +240,10 @@ export function useSavesData() {
           } catch {
             // headshots are non-critical, skip on error
           }
+        }
+        // Fill in headshots for mock poster user IDs that Firestore won't have
+        for (const [uid, url] of Object.entries(MOCK_POSTER_HEADSHOTS)) {
+          if (!headshotMap[uid]) headshotMap[uid] = url;
         }
         if (!cancelled) setPosterHeadshotById(headshotMap);
       } catch (e) {
