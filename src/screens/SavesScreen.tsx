@@ -200,10 +200,12 @@ const SaveCard = ({
 
 const PostDetailModal = ({
   post,
+  avatarUrl,
   onClose,
   onApply,
 }: {
   post: Post | null;
+  avatarUrl?: string;
   onClose: () => void;
   onApply: (post: Post) => void;
 }) => {
@@ -227,7 +229,10 @@ const PostDetailModal = ({
         <ScrollView style={detailStyles.scroll} contentContainerStyle={detailStyles.scrollContent}
           showsVerticalScrollIndicator={false}>
           <View style={detailStyles.posterRow}>
-            <View style={detailStyles.posterAvatar} />
+            {avatarUrl
+              ? <Image source={{ uri: avatarUrl }} style={detailStyles.posterAvatar} resizeMode="cover" />
+              : <View style={detailStyles.posterAvatar} />
+            }
             <View>
               <Text style={detailStyles.posterName}>{post.postedBy.name}</Text>
               {post.postedBy.school
@@ -313,6 +318,7 @@ export const SavesScreen = () => {
       locationLabel={post.postedBy.school || `${post.shootingLocation.city}, ${post.shootingLocation.state}`}
       dateLabel={formatDate(post.recruitmentDeadline)}
       description={cardDescription(post)}
+      avatarUrl={posterHeadshotById[post.postedBy.userId]}
       actionLabel="Apply"
       onAction={() => setApplyPost(post)}
     />
@@ -328,6 +334,7 @@ export const SavesScreen = () => {
         locationLabel={post.postedBy.school || `${post.shootingLocation.city}, ${post.shootingLocation.state}`}
         dateLabel={formatAppliedAt(app.appliedAt) || formatDate(post.recruitmentDeadline)}
         description={cardDescription(post)}
+        avatarUrl={posterHeadshotById[post.postedBy.userId]}
         actionLabel="View Details"
         onAction={() => setDetailPost(post)}
       />
@@ -344,6 +351,7 @@ export const SavesScreen = () => {
         locationLabel={post.postedBy.school || `${post.shootingLocation.city}, ${post.shootingLocation.state}`}
         dateLabel={formatAppliedAt(app.appliedAt) || formatDate(post.recruitmentDeadline)}
         description={cardDescription(post)}
+        avatarUrl={posterHeadshotById[post.postedBy.userId]}
         rejectionReason={app.rejectionReason}
         actionLabel="View Details"
         onAction={() => setDetailPost(post)}
@@ -407,6 +415,7 @@ export const SavesScreen = () => {
 
       <PostDetailModal
         post={detailPost}
+        avatarUrl={detailPost ? posterHeadshotById[detailPost.postedBy.userId] : undefined}
         onClose={() => setDetailPost(null)}
         onApply={p => { setDetailPost(null); setApplyPost(p); }}
       />
